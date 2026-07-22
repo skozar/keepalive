@@ -25,6 +25,7 @@ build: test
 gui:
 	rm -rf dist/$(GUI_NAME) dist/$(GUI_NAME).app
 	$(PDM) run pyinstaller --windowed --name "$(GUI_NAME)" \
+		--icon "src/gui/assets/AppIcon.icns" \
 		--add-data "src/gui/assets:assets" \
 		src/gui/__main__.py
 	@$(PDM) run python -c "import plistlib; p=plistlib.load(open('$(GUI_APP)/Contents/Info.plist','rb')); p['LSUIElement']=True; plistlib.dump(p, open('$(GUI_APP)/Contents/Info.plist','wb'))"
