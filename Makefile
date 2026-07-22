@@ -64,6 +64,7 @@ release-ui:
 	echo "📦 sha256: $$SHA"; \
 	echo "📝 Updating UI formula (v$(VERSION), $$SHA)..."; \
 	sed -i '' "s/version \".*\"/version \"$(VERSION)\"/" $(UI_FORMULA); \
+	sed -i '' "s|keepalive-ui-v[0-9.]*/Keepalive-[0-9.]*.zip|keepalive-ui-v$(VERSION)/Keepalive-$(VERSION).zip|" $(UI_FORMULA); \
 	sed -i '' "s/sha256 \".*\"/sha256 \"$$SHA\"/" $(UI_FORMULA); \
 	echo "📤 Committing and pushing formula update..."; \
 	git add $(UI_FORMULA); \
