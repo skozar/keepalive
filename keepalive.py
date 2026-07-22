@@ -234,16 +234,43 @@ def cmd_stop():
         print("ℹ️  Agent is not installed")
 
 
+def _read_plist_config() -> dict | None:
+    """Parse plist ProgramArguments into a {key: value} dict. None if no plist."""
+    import plistlib
+    if not PLIST_PATH.exists():
+        return None
+    with open(PLIST_PATH, "rb") as f:
+        plist = plistlib.load(f)
+    args = plist.get("ProgramArguments", [])
+    cfg = {}
+    for i, arg in enumerate(args):
+        if arg.startswith("--") and i + 1 < len(args):
+            cfg[arg.lstrip("-")] = args[i + 1]
+    return cfg
+
+
 def cmd_status():
-    """Check if the launchd agent is loaded."""
+    """Check if the launchd agent is loaded and show its configuration."""
     result = subprocess.run(
         ["launchctl", "list", LAUNCHD_LABEL],
         capture_output=True, text=True,
     )
-    if result.returncode == 0 and result.stdout.strip():
+    running = result.returncode == 0 and result.stdout.strip()
+
+    cfg = _read_plist_config()
+    if running:
         print("🟢 keepalive is running")
     else:
         print("🔴 keepalive is not running")
+
+    if cfg:
+        method = cfg.get("method", DEFAULT_METHOD)
+        extra = f", key={cfg['key']}" if method in ("key", "both") and "key" in cfg else ""
+        print(f"   schedule : {cfg.get('schedule', DEFAULT_SCHEDULE)}")
+        print(f"   idle     : {cfg.get('idle', str(DEFAULT_IDLE))}s")
+        print(f"   method   : {method}{extra}")
+    elif running:
+        print("   (plist not found — settings unknown)")
 
 
 def cmd_run(schedule: str, idle: int, method: str, key: str):
