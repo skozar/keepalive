@@ -8,6 +8,8 @@ class KeepaliveUi < Formula
   depends_on "keepalive"
 
   def install
+    puts "=== Current directory: #{Dir.pwd} ==="
+    puts "=== Contents: #{Dir.entries(Dir.pwd).inspect} ==="
     app = Dir["*.app"].first
     odie "No .app bundle found in archive" unless app
     prefix.install app
