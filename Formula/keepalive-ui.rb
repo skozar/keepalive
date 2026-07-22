@@ -3,7 +3,7 @@ class KeepaliveUi < Formula
   homepage "https://github.com/skozar/keepalive"
   version "0.4.0"
   url "https://github.com/skozar/keepalive/releases/download/keepalive-ui-v0.4.0/KeepaliveUI-0.4.0.zip"
-  sha256 "placeholder"
+  sha256 "907a13803e66bbb4e447e9109fc060f0fc903fb65c2efaf0ea56617c4f85984b"
   license "MIT"
 
   depends_on "keepalive"

@@ -3,7 +3,7 @@ class Keepalive < Formula
   homepage "https://github.com/skozar/keepalive"
   version "0.4.0"
   url "https://github.com/skozar/keepalive/releases/download/v#{version}/keepalive"
-  sha256 ""
+  sha256 "3560037379a39520952764cad0c051822f6452072b93591245a98b676e47a356"
 
   def install
     bin.install "keepalive"
