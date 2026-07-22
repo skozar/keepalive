@@ -8,7 +8,9 @@ class KeepaliveUi < Formula
   depends_on "keepalive"
 
   def install
-    mv "Keepalive.app", prefix
+    app = Dir["*.app"].first
+    odie "No .app bundle found in archive" unless app
+    prefix.install app
   end
 
   def post_install
