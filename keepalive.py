@@ -2,12 +2,12 @@
 """Keep macOS "active" for Microsoft Teams during chosen hours.
 
 Usage:
-  keepalive start   [--schedule 04:00-12:00] [--idle 180]
+  keepalive start   [--schedule 04:00-12:00] [--idle 180] [--method mouse|key|both] [--key f13|f14|f15]
   keepalive stop
   keepalive status
-  keepalive run     [--schedule 04:00-12:00] [--idle 180]   # foreground test
+  keepalive run     [--schedule 04:00-12:00] [--idle 180] [--method ...] [--key ...]
 
-No subcommand → daemon mode (launched by launchd with --schedule and --idle).
+No subcommand → daemon mode (launched by launchd).
 """
 
 import argparse
@@ -33,6 +33,15 @@ PLIST_PATH = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCHD_LABEL}.plist"
 # ── defaults ───────────────────────────────────────────────────────────────
 DEFAULT_SCHEDULE = "04:00-12:00"
 DEFAULT_IDLE = 180
+DEFAULT_METHOD = "mouse"
+DEFAULT_KEY = "f13"
+
+# ── macOS key codes for function keys ──────────────────────────────────────
+KEY_CODES = {
+    "f13": 105,
+    "f14": 106,
+    "f15": 107,
+}
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -101,27 +110,43 @@ def jiggle():
     Quartz.CGEventPost(Quartz.kCGSessionEventTap, move)
 
 
+def press_key(key_name: str):
+    """Press a function key via AppleScript — resets idle timer."""
+    code = KEY_CODES.get(key_name)
+    if code is None:
+        log.error("Unknown key: %s", key_name)
+        return
+    subprocess.run(
+        ["osascript", "-e",
+         f'tell application "System Events" to key code {code}'],
+        capture_output=True,
+        timeout=5,
+    )
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  daemon loop — runs when launched by launchd (no subcommand)
 # ═══════════════════════════════════════════════════════════════════════════
 
-def daemon(schedule: str, idle_threshold: int):
+def daemon(schedule: str, idle_threshold: int, method: str, key: str):
     start_hour, end_hour = parse_schedule(schedule)
-    log.info("Daemon started — %02d:00–%02d:00, idle %ds",
-             start_hour, end_hour, idle_threshold)
+    log.info("Daemon started — %02d:00–%02d:00, idle %ds, method=%s, key=%s",
+             start_hour, end_hour, idle_threshold, method, key)
 
     while True:
         try:
             if in_active_window(start_hour, end_hour):
                 idle = idle_seconds()
                 if idle >= idle_threshold:
-                    jiggle()
-                    log.info("Jiggled (idle %.0fs)", idle)
+                    if method in ("mouse", "both"):
+                        jiggle()
+                    if method in ("key", "both"):
+                        press_key(key)
+                    log.info("Keepalive fired (method=%s, idle %.0fs)", method, idle)
                 else:
                     log.info("Active (idle %.0fs), skipping", idle)
                 time.sleep(random.randint(30, 60))
             else:
-                # Outside active window — sleep longer, don't touch the mouse
                 time.sleep(300)
         except Exception:
             log.exception("Error — restarting loop in 30s")
@@ -146,6 +171,10 @@ PLIST_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
         <string>{schedule}</string>
         <string>--idle</string>
         <string>{idle}</string>
+        <string>--method</string>
+        <string>{method}</string>
+        <string>--key</string>
+        <string>{key}</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -169,7 +198,7 @@ def _binary_path() -> str:
 #  CLI commands
 # ═══════════════════════════════════════════════════════════════════════════
 
-def cmd_start(schedule: str, idle: int):
+def cmd_start(schedule: str, idle: int, method: str, key: str):
     """Install and start the launchd agent."""
     if PLIST_PATH.exists():
         print("⚠️  Agent already installed. Run 'keepalive stop' first to reconfigure.")
@@ -181,12 +210,16 @@ def cmd_start(schedule: str, idle: int):
         binary=_binary_path(),
         schedule=schedule,
         idle=str(idle),
+        method=method,
+        key=key,
         log_file=str(LOG_FILE),
     )
     PLIST_PATH.write_text(plist_xml)
     subprocess.run(["launchctl", "load", str(PLIST_PATH)], check=True)
-    log.info("Installed and started — schedule %s, idle %ds", schedule, idle)
-    print(f"✅ Agent started — schedule {schedule}, idle {idle}s")
+    log.info("Installed and started — schedule %s, idle %ds, method=%s, key=%s",
+             schedule, idle, method, key)
+    print(f"✅ Agent started — schedule {schedule}, idle {idle}s, method={method}"
+          + (f", key={key}" if method in ("key", "both") else ""))
     print(f"   Logs: {LOG_FILE}")
 
 
@@ -213,15 +246,23 @@ def cmd_status():
         print("🔴 keepalive is not running")
 
 
-def cmd_run(schedule: str, idle: int):
+def cmd_run(schedule: str, idle: int, method: str, key: str):
     """Run daemon in foreground for testing."""
-    print(f"🟢 Foreground mode — schedule {schedule}, idle {idle}s (Ctrl+C to stop)")
-    daemon(schedule, idle)
+    extra = f", key={key}" if method in ("key", "both") else ""
+    print(f"🟢 Foreground mode — schedule {schedule}, idle {idle}s, method={method}{extra} (Ctrl+C to stop)")
+    daemon(schedule, idle, method, key)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  main — detect subcommand vs daemon mode
 # ═══════════════════════════════════════════════════════════════════════════
+
+def _add_common_args(parser):
+    parser.add_argument("--schedule", default=DEFAULT_SCHEDULE)
+    parser.add_argument("--idle", type=int, default=DEFAULT_IDLE)
+    parser.add_argument("--method", choices=("mouse", "key", "both"), default=DEFAULT_METHOD)
+    parser.add_argument("--key", choices=list(KEY_CODES), default=DEFAULT_KEY)
+
 
 def main():
     subcommands = {"start", "stop", "status", "run"}
@@ -231,26 +272,22 @@ def main():
         cmd = sys.argv[1]
         parser = argparse.ArgumentParser(prog=f"keepalive {cmd}")
         if cmd == "start":
-            parser.add_argument("--schedule", default=DEFAULT_SCHEDULE)
-            parser.add_argument("--idle", type=int, default=DEFAULT_IDLE)
+            _add_common_args(parser)
             args = parser.parse_args(sys.argv[2:])
-            cmd_start(args.schedule, args.idle)
+            cmd_start(args.schedule, args.idle, args.method, args.key)
         elif cmd == "stop":
             cmd_stop()
         elif cmd == "status":
             cmd_status()
         elif cmd == "run":
-            parser.add_argument("--schedule", default=DEFAULT_SCHEDULE)
-            parser.add_argument("--idle", type=int, default=DEFAULT_IDLE)
+            _add_common_args(parser)
             args = parser.parse_args(sys.argv[2:])
-            cmd_run(args.schedule, args.idle)
+            cmd_run(args.schedule, args.idle, args.method, args.key)
     else:
-        # Daemon mode — launched by launchd with --schedule and --idle args
         parser = argparse.ArgumentParser(prog="keepalive")
-        parser.add_argument("--schedule", default=DEFAULT_SCHEDULE)
-        parser.add_argument("--idle", type=int, default=DEFAULT_IDLE)
+        _add_common_args(parser)
         args = parser.parse_args(sys.argv[1:])
-        daemon(args.schedule, args.idle)
+        daemon(args.schedule, args.idle, args.method, args.key)
 
 
 if __name__ == "__main__":
