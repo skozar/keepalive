@@ -8,14 +8,12 @@ class KeepaliveUi < Formula
   depends_on "keepalive"
 
   def install
-    puts "=== PWD: #{Dir.pwd} ==="
-    puts "=== Toplevel: #{Dir.glob('*').inspect} ==="
-    puts "=== Recursive: #{Dir.glob('**/*').first(20).inspect} ==="
+    system "ls", "-laR"
     app = Dir.glob("**/*.app").first
     if app
       prefix.install app
     else
-      odie "No .app bundle found"
+      odie "No .app bundle found in #{Dir.pwd}"
     end
   end
 
