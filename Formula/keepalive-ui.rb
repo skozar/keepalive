@@ -13,12 +13,9 @@ class KeepaliveUi < Formula
   end
 
   def post_install
-    target = "/Applications/Keepalive.app"
-    if File.exist?(target) || File.symlink?(target)
-      opoo "#{target} already exists. Removing to create symlink."
-      FileUtils.rm_rf(target)
-    end
-    system "ln", "-sf", prefix/"Keepalive.app", target
+    target = Pathname("/Applications/Keepalive.app")
+    target.unlink if target.exist? || target.symlink?
+    FileUtils.ln_sf prefix/"Keepalive.app", target
   end
 
   def caveats
