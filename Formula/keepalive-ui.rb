@@ -8,13 +8,9 @@ class KeepaliveUi < Formula
   depends_on "keepalive"
 
   def install
-    system "ls", "-laR"
-    app = Dir.glob("**/*.app").first
-    if app
-      prefix.install app
-    else
-      odie "No .app bundle found in #{Dir.pwd}"
-    end
+    # Debug: what's in the staging directory?
+    contents = Dir.glob("*").map { |f| "#{File.directory?(f) ? 'd' : 'f'} #{f}" }.join(", ")
+    odie "PWD=#{Dir.pwd} FILES=[#{contents}]"
   end
 
   def post_install
