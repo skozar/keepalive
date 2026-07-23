@@ -67,11 +67,15 @@ def cmd_stop():
 
 def cmd_status(json_output: bool = False):
     """Check if the launchd agent is loaded and show its configuration."""
-    result = subprocess.run(
-        ["launchctl", "list", LAUNCHD_LABEL],
-        capture_output=True, text=True,
-    )
-    running = result.returncode == 0 and result.stdout.strip()
+    try:
+        result = subprocess.run(
+            ["launchctl", "list", LAUNCHD_LABEL],
+            capture_output=True, text=True,
+        )
+        running = result.returncode == 0 and result.stdout.strip()
+    except FileNotFoundError:
+        # launchctl not available (Linux)
+        running = False
     cfg = read_plist_config()
 
     if json_output:

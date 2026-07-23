@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import pytest
 
 
 class TestCLI:
@@ -21,6 +22,7 @@ class TestCLI:
         assert "--method" in result.stdout
         assert "--key" in result.stdout
 
+    @pytest.mark.skipif(sys.platform != "darwin", reason="needs launchctl")
     def test_status_smoke(self):
         result = subprocess.run(
             [sys.executable, "-m", "keepalive", "status"],
