@@ -1,6 +1,9 @@
 # Changelog
 
 ## v0.5.0 (2026-07-23)
+- feat: add app icon (light blue circle outline)
+- chore: unify CLI+UI release, auto-changelog from git log
+- chore: rename GUI bundle to KeepaliveUI (case-insensitive fix)
 
 
 ## v0.4.0 (2026-07-22)
