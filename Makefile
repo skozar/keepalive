@@ -63,7 +63,7 @@ release:
 	  echo ) >> $$NOTES_FILE; \
 	tail -n +2 CHANGELOG.md >> $$NOTES_FILE; \
 	mv $$NOTES_FILE CHANGELOG.md; \
-	CLI_SHA=$$(shasum -a 256 dist/$(APP_NAME)-$(VERSION).tar.gz | cut -d' ' -f1); \\
+	CLI_SHA=$$(shasum -a 256 dist/$(APP_NAME)-$(VERSION).tar.gz | cut -d' ' -f1); \
 	GUI_SHA=$$(shasum -a 256 dist/$(GUI_NAME)-$(VERSION).zip | cut -d' ' -f1); \
 	echo "CLI sha256: $$CLI_SHA"; \
 	echo "UI  sha256: $$GUI_SHA"; \
@@ -79,7 +79,7 @@ release:
 	git push origin main; \
 	awk '/^## v$(VERSION) /{flag=1;next} /^## v/{flag=0} flag' CHANGELOG.md > $$NOTES_FILE; \
 	[ -s $$NOTES_FILE ] || echo "v$(VERSION)" > $$NOTES_FILE; \
-	gh release create v$(VERSION) dist/$(APP_NAME)-$(VERSION).tar.gz dist/$(GUI_NAME)-$(VERSION).zip \\
+	gh release create v$(VERSION) dist/$(APP_NAME)-$(VERSION).tar.gz dist/$(GUI_NAME)-$(VERSION).zip \
 		--title "v$(VERSION)" --notes-file $$NOTES_FILE || true; \
 	rm -f $$NOTES_FILE; \
 	echo "📋 Step 6/6: Updating homebrew-tap..."; \
