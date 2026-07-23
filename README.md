@@ -3,7 +3,8 @@
 [![tests](https://github.com/skozar/keepalive/actions/workflows/test.yml/badge.svg)](https://github.com/skozar/keepalive/actions/workflows/test.yml)
 [![21 tests](https://img.shields.io/badge/tests-21-success)](https://github.com/skozar/keepalive/actions/workflows/test.yml)
 [![sponsor](https://img.shields.io/badge/sponsor-30363D?logo=github-sponsors&style=flat)](https://github.com/sponsors/skozar)
-[![buy me a coffee](https://img.shields.io/badge/donate-FF813F?logo=buymeacoffee&style=flat)](https://buymeacoffee.com/skozar)
+[![buy me a coffee](https://img.shields.io/badge/buy_me_a_coffee-FF813F?logo=buymeacoffee&style=flat)](https://buymeacoffee.com/skozar)
+[![ko-fi](https://img.shields.io/badge/ko--fi-FF5E5B?logo=kofi&style=flat)](https://ko-fi.com/skozar)
 
 Stay green. Simulates macOS input activity only when you're away — so messengers don't mark you "Away."
 
