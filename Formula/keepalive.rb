@@ -1,9 +1,9 @@
 class Keepalive < Formula
   desc "Menu bar app — keep macOS awake on schedule"
   homepage "https://github.com/skozar/keepalive"
-  version "0.5.3"
+  version "0.6.0"
   url "https://github.com/skozar/keepalive/releases/download/v#{version}/Keepalive-#{version}.zip"
-  sha256 "ae1bffe6e9e6de3b4b023e7417958656920617b80d515ac5fa0bab5eb0569400"
+  sha256 "8061ab3d376b926e8df6de028af0d3eea1f1d77ed3e5f6a0c04bfaa9c30a5716"
 
   depends_on "keepalive-cli"
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.6.0 (2026-07-23)
+- rename: keepalive→keepalive-cli (CLI), KeepaliveUI→Keepalive (GUI), smoother icons, README rewrite
+- v0.5.3: update formulas
+
 ## v0.5.3 (2026-07-23)
 - fix: _menu_item→_menuitem, date picker style→TextFieldAndStepper
 - docs: update README for v0.5.2 (schedule, speed, GUI, tests, CI)
