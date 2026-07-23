@@ -91,8 +91,8 @@ class KeepaliveApp(rumps.App):
     def _update_state(self):
         running = is_running()
         self.icon = self.icon_running if running else self.icon_stopped
-        self.menu["Start"]._menu_item.setHidden_(running)
-        self.menu["Stop"]._menu_item.setHidden_(not running)
+        self.menu["Start"]._menuitem.setHidden_(running)
+        self.menu["Stop"]._menuitem.setHidden_(not running)
 
     def _cli_args(self) -> list[str]:
         s = self.settings

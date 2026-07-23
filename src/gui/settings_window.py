@@ -63,7 +63,7 @@ class SettingsWindow:
         dp_from = AppKit.NSDatePicker.alloc().initWithFrame_(
             ((label_w + 6, y0), (field_w, field_h))
         )
-        dp_from.setDatePickerStyle_(AppKit.NSClockAndCalendarDatePickerStyle)
+        dp_from.setDatePickerStyle_(AppKit.NSTextFieldAndStepperDatePickerStyle)
         dp_from.setDatePickerElements_(AppKit.NSHourMinuteDatePickerElementFlag)
         dp_from.setDatePickerMode_(AppKit.NSSingleDateMode)
         dp_from.setDrawsBackground_(True)
@@ -87,7 +87,7 @@ class SettingsWindow:
         dp_to = AppKit.NSDatePicker.alloc().initWithFrame_(
             ((label_w + 6, y1), (field_w, field_h))
         )
-        dp_to.setDatePickerStyle_(AppKit.NSClockAndCalendarDatePickerStyle)
+        dp_to.setDatePickerStyle_(AppKit.NSTextFieldAndStepperDatePickerStyle)
         dp_to.setDatePickerElements_(AppKit.NSHourMinuteDatePickerElementFlag)
         dp_to.setDatePickerMode_(AppKit.NSSingleDateMode)
         dp_to.setDrawsBackground_(True)
