@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.5.3 (2026-07-23)
+- fix: _menu_item→_menuitem, date picker style→TextFieldAndStepper
+- docs: update README for v0.5.2 (schedule, speed, GUI, tests, CI)
+- v0.5.2: update formulas
+
 ## v0.5.2 (2026-07-23)
 - fix: correct backslash escaping in release target
 - fix: remove broken sed line in release target

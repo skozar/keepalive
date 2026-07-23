@@ -1,6 +1,6 @@
 """keepalive — stay green in messaging apps."""
 
-__version__ = "0.5.2"
+__version__ = "0.5.3"
 
 # Re-export constants for convenience
 from keepalive.config import (

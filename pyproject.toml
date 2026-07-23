@@ -1,6 +1,6 @@
 [project]
 name = "keepalive"
-version = "0.5.2"
+version = "0.5.3"
 description = "Keep macOS active for messaging apps"
 requires-python = ">=3.14,<3.16"
 dependencies = [
