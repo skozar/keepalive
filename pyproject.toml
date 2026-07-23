@@ -4,17 +4,13 @@ version = "0.5.1"
 description = "Keep macOS active for messaging apps"
 requires-python = ">=3.14,<3.16"
 dependencies = [
-    "pyobjc-framework-Quartz>=12.0",
-    "rumps>=0.4.0",
+    "pyobjc-framework-Quartz>=12.0; sys_platform == \"darwin\"",
+    "rumps>=0.4.0; sys_platform == \"darwin\"",
 ]
 
 
 [tool.pdm]
 version = { source = "file", path = "src/keepalive/__init__.py" }
-
-[tool.pdm.dev-dependencies]
-test = ["pytest>=8.0"]
-build = ["pyinstaller>=6.0"]
 
 [project.scripts]
 keepalive = "keepalive.cli:main"
@@ -26,5 +22,7 @@ build-backend = "pdm.backend"
 
 [dependency-groups]
 dev = [
-    "pytest-cov>=7.1.0",
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "pyinstaller>=6.0; sys_platform == \"darwin\"",
 ]
