@@ -8,7 +8,7 @@ LOG_FILE = LOG_DIR / "keepalive.log"
 LAUNCHD_LABEL = "com.keepalive.jiggle"
 PLIST_PATH = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCHD_LABEL}.plist"
 
-DEFAULT_SCHEDULE = "04:00-12:00"
+DEFAULT_SCHEDULE = "08:00-17:00"
 DEFAULT_IDLE = 180
 DEFAULT_METHOD = "mouse"
 DEFAULT_KEY = "f13"

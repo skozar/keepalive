@@ -25,9 +25,9 @@ build: test
 gui:
 	rm -rf dist/$(GUI_NAME) dist/$(GUI_NAME).app
 	$(PDM) run pyinstaller --windowed --name "$(GUI_NAME)" \
-		--icon "src/gui/assets/AppIcon.icns" \
-		--add-data "src/gui/assets:assets" \
-		src/gui/__main__.py
+		--add-data "gui/assets:assets" \
+		--icon "gui/assets/AppIcon.icns" \
+		gui/__main__.py
 	@$(PDM) run python -c "import plistlib; p=plistlib.load(open('$(GUI_APP)/Contents/Info.plist','rb')); p['LSUIElement']=True; plistlib.dump(p, open('$(GUI_APP)/Contents/Info.plist','wb'))"
 
 clean:
@@ -47,9 +47,12 @@ release:
 	@echo "📦 Zipping .app..."
 	@cd dist && zip -r $(GUI_NAME)-$(VERSION).zip "$(GUI_NAME).app"
 	@echo "🏷️  Step 4/6: Tagging..."
-	@git tag v$(VERSION) 2>/dev/null; git push origin v$(VERSION) 2>/dev/null || true
-	@echo "📝 Step 5/6: Generating changelog and updating formulas..."
 	@PREV_TAG=$$(git tag --sort=-version:refname | grep '^v[0-9]' | head -1); \
+	git tag v$(VERSION) 2>/dev/null; git push origin v$(VERSION) 2>/dev/null || true; \
+	[ -z "$$PREV_TAG" ] && PREV_TAG=$$(git describe --tags --abbrev=0 2>/dev/null || echo ""); \
+	echo "Previous tag: $$PREV_TAG"
+	@echo "📝 Step 5/6: Generating changelog and updating formulas..."
+	@PREV_TAG=$$(git tag --sort=-version:refname | grep '^v[0-9]' | grep -v "v$(VERSION)" | head -1); \
 	[ -n "$$PREV_TAG" ] && RANGE="$$PREV_TAG..HEAD" || RANGE="HEAD"; \
 	NOTES_FILE=/tmp/keepalive-release-notes-$(VERSION).md; \
 	head -1 CHANGELOG.md > $$NOTES_FILE; \

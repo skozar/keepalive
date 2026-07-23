@@ -13,15 +13,19 @@ class KeepaliveUi < Formula
   end
 
   def post_install
-    target = Pathname("/Applications/Keepalive.app")
-    target.unlink if target.exist? || target.symlink?
-    FileUtils.ln_sf prefix/"Keepalive.app", target
+    app_source = prefix/"Keepalive.app"
+    app_target = Pathname("/Applications/Keepalive.app")
+    app_target.delete if app_target.exist? || app_target.symlink?
+    app_target.make_symlink(app_source)
   end
 
   def caveats
     <<~EOS
       Keepalive.app has been symlinked to /Applications/Keepalive.app.
       Launch it from Spotlight or Launchpad.
+
+      Settings are stored in ~/.config/keepalive/settings.json
+      and survive reinstalls — you only need to configure once.
 
       IMPORTANT: The keepalive CLI binary must have Accessibility
       permission for mouse jiggle to work:
