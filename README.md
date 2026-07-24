@@ -5,6 +5,7 @@
 [![sponsor](https://img.shields.io/badge/sponsor-30363D?logo=github-sponsors&style=flat)](https://github.com/sponsors/skozar)
 [![buy me a coffee](https://img.shields.io/badge/buy_me_a_coffee-FF813F?logo=buymeacoffee&style=flat)](https://buymeacoffee.com/skozar)
 [![ko-fi](https://img.shields.io/badge/ko--fi-FF5E5B?logo=kofi&style=flat)](https://ko-fi.com/skozar)
+[![license](https://img.shields.io/badge/license-PolyForm_Noncommercial-8A2BE2?style=flat)](LICENSE)
 
 Stay green in messengers — without touching your Mac. Simulates input activity
 only when you're away so Slack / Teams / Discord never mark you "Away."
@@ -109,3 +110,11 @@ make release VERSION=0.7.0         # Test, build, tag, GitHub Release, update ta
 ```
 
 CI runs on **Ubuntu** (22 tests, ~30 s). Public repo — unlimited free minutes.
+
+---
+
+## License
+
+[PolyForm Noncommercial 1.0.0](LICENSE) — free for personal, educational, and
+non-commercial use. Commercial use requires a paid license. Contact skozar@
+for terms.
