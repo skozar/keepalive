@@ -9,4 +9,6 @@ from keepalive.config import (
     DEFAULT_IDLE,
     DEFAULT_METHOD,
     DEFAULT_KEY,
+    load_settings,
+    save_settings,
 )

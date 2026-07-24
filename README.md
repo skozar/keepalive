@@ -1,12 +1,13 @@
-# keepalive
+# keepalive-cli
 
 [![tests](https://github.com/skozar/keepalive/actions/workflows/test.yml/badge.svg)](https://github.com/skozar/keepalive/actions/workflows/test.yml)
-[![21 tests](https://img.shields.io/badge/tests-21-success)](https://github.com/skozar/keepalive/actions/workflows/test.yml)
+[![25 tests](https://img.shields.io/badge/tests-25-success)](https://github.com/skozar/keepalive/actions/workflows/test.yml)
 [![sponsor](https://img.shields.io/badge/sponsor-30363D?logo=github-sponsors&style=flat)](https://github.com/sponsors/skozar)
 [![buy me a coffee](https://img.shields.io/badge/buy_me_a_coffee-FF813F?logo=buymeacoffee&style=flat)](https://buymeacoffee.com/skozar)
 [![ko-fi](https://img.shields.io/badge/ko--fi-FF5E5B?logo=kofi&style=flat)](https://ko-fi.com/skozar)
 
-Stay green. Simulates macOS input activity only when you're away — so messengers don't mark you "Away."
+Stay green in messengers — without touching your Mac. Simulates input activity
+only when you're away so Slack / Teams / Discord never mark you "Away."
 
 ---
 
@@ -15,10 +16,12 @@ Stay green. Simulates macOS input activity only when you're away — so messenge
 - Checks system idle time via Quartz every 30–60 seconds.
 - If you haven't touched the mouse or keyboard for **180 seconds** (default) and
   the current time falls within your configured window — it fires.
-- Firing means either nudging the cursor 1 px, pressing a harmless key (F13), or
-  both with a 50 ms gap — imperceptible while you actually work.
+- Firing means: nudging the cursor 1 px, pressing a harmless key (F13), or both
+  with a 50 ms gap — imperceptible while you actually work.
 - Runs as a launchd agent. Survives reboots. Logs to
   `~/Library/Logs/keepalive/keepalive.log` (auto‑rotated, 5 × 1 MB).
+- Configuration is stored in `~/.config/keepalive/settings.json` — readable,
+  editable, survives reinstalls.
 
 | Messenger | Away after | keepalive beats it? |
 |---|---|---|
@@ -26,9 +29,6 @@ Stay green. Simulates macOS input activity only when you're away — so messenge
 | Discord | ~5 min | ✅ fires at 3 min |
 | Microsoft Teams | ~5 min | ✅ fires at 3 min |
 | Mattermost | configurable | ✅ fires at 3 min |
-
-The `--idle` threshold sits well below every messenger's away timer — you stay
-visible without unnecessary jiggling.
 
 ### What it will NOT do
 
@@ -42,44 +42,11 @@ visible without unnecessary jiggling.
 
 ## Install
 
-### Recommended — menu bar app
-
-```bash
-brew install keepalive
-```
-
-You get:
-
-- A menu bar icon that shows whether the agent is running (green dot) or
-  stopped (grey dot).
-- A native **Settings…** dialog to pick your schedule, method, key, and idle
-  threshold — saved to `~/.config/keepalive/settings.json`.
-- Auto‑start on login (the app launches the CLI agent for you).
-- **Keepalive** appears in Spotlight and Launchpad — launch it, forget it.
-
-```text
-┌────── keepalive ──────┐
-│                       │
-│         ●             │   ● = running
-│                       │   ○ = stopped
-├───────────────────────┤
-│ Start                │   hidden when running
-│ Stop                 │   hidden when stopped
-│ Settings…            │
-│ Quit                │
-└───────────────────────┘
-```
-
-Grant Accessibility permission once: **System Settings → Privacy & Security →
-Accessibility** → add `/opt/homebrew/bin/keepalive-cli`.
-
-### CLI only — for minimalists
-
 ```bash
 brew install keepalive-cli
 ```
 
-No menu bar, no GUI. Just the binary on your PATH.
+Starts in ~0.07s (`--onedir` build). Binaries are on your PATH.
 
 ```bash
 keepalive-cli start                   # defaults: 08:00–17:00, 180 s idle, mouse
@@ -87,6 +54,36 @@ keepalive-cli start --schedule 09:00-18:00 --method key
 keepalive-cli status                  # is it running? what are the settings?
 keepalive-cli status --json           # machine‑readable for scripts
 keepalive-cli stop                    # unload the agent
+keepalive-cli run                     # foreground test mode (Ctrl+C to exit)
+```
+
+Grant Accessibility permission once: **System Settings → Privacy & Security →
+Accessibility** → add `/opt/homebrew/bin/keepalive-cli`.
+
+---
+
+## Configure
+
+On first start, keepalive-cli writes its defaults to
+`~/.config/keepalive/settings.json`:
+
+```json
+{
+  "schedule_from": "08:00",
+  "schedule_to": "17:00",
+  "idle": 180,
+  "method": "mouse",
+  "key": "f13"
+}
+```
+
+Edit this file to change settings permanently — no more CLI flags needed:
+
+```bash
+# Change schedule to 09:00–18:00 and switch to key press
+keepalive-cli stop
+# edit ~/.config/keepalive/settings.json …
+keepalive-cli start   # picks up new settings
 ```
 
 ---
@@ -107,14 +104,8 @@ keepalive-cli stop                    # unload the agent
 ```bash
 pdm install --dev                  # one-time setup
 make build                         # PyInstaller → dist/keepalive-cli/
-make gui                           # PyInstaller → dist/Keepalive.app
-make test                          # 21 tests, 7 files
-make release VERSION=0.6.0         # Test, build, tag, GitHub Release, update tap
+make test                          # 25 tests, 5 files
+make release VERSION=0.7.0         # Test, build, tag, GitHub Release, update tap
 ```
 
-The release packages `keepalive-cli-{version}.tar.gz` (CLI) and
-`Keepalive-{version}.zip` (GUI). Both are uploaded to GitHub Releases and served
-by the Homebrew tap.
-
-CI runs on **Ubuntu** (pure Python, ~30 s) and **macOS** (GUI imports, ~2 min).
-Public repo — unlimited free minutes.
+CI runs on **Ubuntu** (22 tests, ~30 s). Public repo — unlimited free minutes.

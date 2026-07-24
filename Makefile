@@ -1,16 +1,12 @@
 APP_NAME = keepalive-cli
 BINARY = dist/$(APP_NAME)/$(APP_NAME)
-GUI_NAME = Keepalive
-GUI_APP = dist/$(GUI_NAME).app
-GUI_ZIP = dist/$(GUI_NAME)-$(VERSION).zip
 FORMULA = Formula/$(APP_NAME).rb
-UI_FORMULA = Formula/keepalive.rb
 TAP_DIR = $(HOME)/Projects/pets/homebrew-tap
 PDM = pdm
 
-.PHONY: all dev test build gui clean release
+.PHONY: all dev test build clean release
 
-all: build
+all: test build
 
 dev:
 	$(PDM) install --dev
@@ -18,72 +14,59 @@ dev:
 test:
 	$(PDM) run pytest -v
 
-build: test
-	rm -rf dist/$(APP_NAME) dist/$(APP_NAME).app
+build:
+	rm -rf dist/$(APP_NAME)
 	$(PDM) run pyinstaller --onedir --name $(APP_NAME) src/keepalive/__main__.py
-	@[ -n "$(VERSION)" ] && ( cd dist && tar -czf $(APP_NAME)-$(VERSION).tar.gz $(APP_NAME) ) || true
-
-gui:
-	rm -rf dist/$(GUI_NAME) dist/$(GUI_NAME).app
-	$(PDM) run pyinstaller --windowed --name "$(GUI_NAME)" \
-		--paths src \
-		--add-data "src/gui/assets:assets" \
-		--icon "src/gui/assets/AppIcon.icns" \
-		src/gui/__main__.py
-	@$(PDM) run python -c "import plistlib; p=plistlib.load(open('$(GUI_APP)/Contents/Info.plist','rb')); p['LSUIElement']=True; plistlib.dump(p, open('$(GUI_APP)/Contents/Info.plist','wb'))"
 
 clean:
-	rm -rf build dist *.spec .pytest_cache
-	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
+	rm -rf build dist *.spec __pycache__ src/**/__pycache__ tests/**/__pycache__
+
+# ── release ──────────────────────────────────────────────────────────────────
 
 release:
-	@[ "${VERSION}" ] || ( echo "Usage: make release VERSION=0.5.0"; exit 1 )
-	@[ -d "$(TAP_DIR)" ] || ( echo "Tap not found at $(TAP_DIR). Clone it: git clone git@github.com:skozar/homebrew-tap.git $(TAP_DIR)"; exit 1 )
-	@echo "============================================"
+	@[ -n "$(VERSION)" ] || (echo "❌ VERSION= required, e.g. make release VERSION=0.7.0" && exit 1)
 	@echo "🔨 Step 1/6: Running tests..."
 	@$(MAKE) test
 	@echo "🔨 Step 2/6: Building CLI binary..."
 	@$(MAKE) build
-	@echo "🔨 Step 3/6: Building GUI .app..."
-	@$(MAKE) gui
-	@echo "📦 Zipping .app..."
-	@cd dist && zip -r $(GUI_NAME)-$(VERSION).zip "$(GUI_NAME).app"
-	@echo "🏷️  Step 4/6: Tagging..."
+	@echo "📦 Packaging..."
+	@cd dist && tar --no-xattrs -czf $(APP_NAME)-$(VERSION).tar.gz "$(APP_NAME)"
+	@echo "🏷️  Step 3/6: Tagging..."
 	@PREV_TAG=$$(git tag --sort=-version:refname | grep '^v[0-9]' | head -1); \
-	git tag v$(VERSION) 2>/dev/null; git push origin v$(VERSION) 2>/dev/null || true; \
-	[ -z "$$PREV_TAG" ] && PREV_TAG=$$(git describe --tags --abbrev=0 2>/dev/null || echo ""); \
-	echo "Previous tag: $$PREV_TAG"
-	@echo "📝 Step 5/6: Generating changelog and updating formulas..."
-	@PREV_TAG=$$(git tag --sort=-version:refname | grep '^v[0-9]' | grep -v "v$(VERSION)" | head -1); \
-	[ -n "$$PREV_TAG" ] && RANGE="$$PREV_TAG..HEAD" || RANGE="HEAD"; \
-	NOTES_FILE=/tmp/keepalive-release-notes-$(VERSION).md; \
-	head -1 CHANGELOG.md > $$NOTES_FILE; \
-	( echo; echo "## v$(VERSION) ($$(date +%Y-%m-%d))"; \
-	  git log $$RANGE --no-merges --pretty=format:"- %s"; \
-	  echo ) >> $$NOTES_FILE; \
-	tail -n +2 CHANGELOG.md >> $$NOTES_FILE; \
-	mv $$NOTES_FILE CHANGELOG.md; \
-	CLI_SHA=$$(shasum -a 256 dist/$(APP_NAME)-$(VERSION).tar.gz | cut -d' ' -f1); \
-	GUI_SHA=$$(shasum -a 256 dist/$(GUI_NAME)-$(VERSION).zip | cut -d' ' -f1); \
+	echo "Previous tag: $$PREV_TAG"; \
+	git log --oneline $$PREV_TAG..HEAD > /tmp/keepalive_changes; \
+	NOTES_FILE=$$(mktemp); \
+	echo "## Changes" > $$NOTES_FILE; \
+	echo '```' >> $$NOTES_FILE; \
+	cat /tmp/keepalive_changes >> $$NOTES_FILE; \
+	echo '```' >> $$NOTES_FILE; \
+	echo "" >> $$NOTES_FILE; \
+	echo "[CLI tar.gz → keepalive-cli-$(VERSION).tar.gz](https://github.com/skozar/keepalive/releases/download/v$(VERSION)/keepalive-cli-$(VERSION).tar.gz)" >> $$NOTES_FILE; \
+	echo "" >> $$NOTES_FILE; \
+	echo "### Install / Upgrade" >> $$NOTES_FILE; \
+	echo '```bash' >> $$NOTES_FILE; \
+	echo "brew update && brew upgrade keepalive-cli" >> $$NOTES_FILE; \
+	echo '```' >> $$NOTES_FILE
+	@echo "📝 Step 4/6: Updating formulas..."
+	@CLI_SHA=$$(shasum -a 256 dist/$(APP_NAME)-$(VERSION).tar.gz | cut -d' ' -f1); \
 	echo "CLI sha256: $$CLI_SHA"; \
-	echo "UI  sha256: $$GUI_SHA"; \
 	sed -i '' "s/version \".*\"/version \"$(VERSION)\"/" $(FORMULA); \
 	sed -i '' "s/sha256 \".*\"/sha256 \"$$CLI_SHA\"/" $(FORMULA); \
-	sed -i '' "s/version \".*\"/version \"$(VERSION)\"/" $(UI_FORMULA); \
-	sed -i '' "s|download/[^/]*/Keepalive-[0-9.]*.zip|download/v$(VERSION)/Keepalive-$(VERSION).zip|" $(UI_FORMULA); \
-	sed -i '' "s/sha256 \".*\"/sha256 \"$$GUI_SHA\"/" $(UI_FORMULA); \
 	sed -i '' 's/__version__ = ".*"/__version__ = "$(VERSION)"/' src/keepalive/__init__.py; \
 	sed -i '' 's/^version = ".*"/version = "$(VERSION)"/' pyproject.toml; \
-	git add $(FORMULA) $(UI_FORMULA) CHANGELOG.md pyproject.toml src/keepalive/__init__.py; \
+	git add $(FORMULA) CHANGELOG.md pyproject.toml src/keepalive/__init__.py; \
 	git commit -m "v$(VERSION): update formulas" || true; \
-	git push origin main; \
-	awk '/^## v$(VERSION) /{flag=1;next} /^## v/{flag=0} flag' CHANGELOG.md > $$NOTES_FILE; \
-	[ -s $$NOTES_FILE ] || echo "v$(VERSION)" > $$NOTES_FILE; \
-	gh release create v$(VERSION) dist/$(APP_NAME)-$(VERSION).tar.gz dist/$(GUI_NAME)-$(VERSION).zip \
+	git push origin main;
+	@echo "📋 Step 5/6: Creating GitHub Release..."
+	@git tag -a v$(VERSION) -m "v$(VERSION)" || true; \
+	git push origin v$(VERSION); \
+	gh release create v$(VERSION) dist/$(APP_NAME)-$(VERSION).tar.gz \
 		--title "v$(VERSION)" --notes-file $$NOTES_FILE || true; \
-	rm -f $$NOTES_FILE; \
-	echo "📋 Step 6/6: Updating homebrew-tap..."; \
-	cp $(FORMULA) $(TAP_DIR)/Formula/; \
-	cp $(UI_FORMULA) $(TAP_DIR)/Formula/; \
-	cd $(TAP_DIR) && git add . && git commit -m "keepalive v$(VERSION)" || true && git push origin main; \
-	echo "✅ Release v$(VERSION) complete."
+	rm -f $$NOTES_FILE
+	@echo "📋 Step 6/6: Updating homebrew-tap..."
+	@cp $(FORMULA) $(TAP_DIR)/Formula/; \
+	cd $(TAP_DIR); \
+	git add Formula/$(APP_NAME).rb; \
+	git commit -m "keepalive-cli v$(VERSION)"; \
+	git push origin main
+	@echo "✅ Release v$(VERSION) complete."

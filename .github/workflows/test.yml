@@ -11,14 +11,4 @@ jobs:
         with:
           python-version: "3.14"
       - run: pdm install --dev
-      - run: pdm run pytest tests/test_cli.py tests/test_config.py tests/test_plist.py tests/test_gui_syntax.py -v --cov=keepalive --cov-report=term-missing
-
-  test-gui:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pdm-project/setup-pdm@v4
-        with:
-          python-version: "3.14"
-      - run: pdm install --dev
-      - run: pdm run pytest tests/test_gui_import.py tests/test_settings.py -v
+      - run: pdm run pytest tests/ -v --cov=keepalive --cov-report=term-missing
