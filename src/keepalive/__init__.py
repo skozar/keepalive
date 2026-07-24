@@ -1,5 +1,8 @@
 """keepalive — stay green in messaging apps."""
 
+# Required Notice: Copyright 2026 Sviatoslav Kozar (https://github.com/skozar/keepalive)
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+
 __version__ = "0.7.0"
 
 # Re-export constants for convenience
