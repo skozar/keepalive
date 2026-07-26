@@ -15,6 +15,7 @@ from keepalive.config import (
     load_settings,
     save_settings,
 )
+from keepalive.protocols import InputDriver, SchedulerDriver  # noqa: F401
 
 __all__ = [
     "KEY_CODES",
@@ -24,4 +25,6 @@ __all__ = [
     "DEFAULT_KEY",
     "load_settings",
     "save_settings",
+    "InputDriver",
+    "SchedulerDriver",
 ]

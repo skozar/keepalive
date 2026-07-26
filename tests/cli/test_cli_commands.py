@@ -1,3 +1,5 @@
+"""CLI integration tests — subprocess, slow, platform-dependent."""
+
 import json
 import subprocess
 import sys
@@ -55,7 +57,6 @@ class TestCLI:
         settings_file = tmp_path / "settings.json"
         monkeypatch.setattr("keepalive.config.SETTINGS_PATH", settings_file)
         save_settings("10:00-14:00", 60, "both", "f15")
-        # argparse defaults come from load_settings(), check them
         cfg = load_settings()
         assert cfg["schedule"] == "10:00-14:00"
         assert cfg["idle"] == 60
@@ -67,8 +68,5 @@ class TestCLI:
         settings_file = tmp_path / "settings.json"
         monkeypatch.setattr("keepalive.config.SETTINGS_PATH", settings_file)
         save_settings("08:00-17:00", 180, "mouse", "f13")
-        # Simulate: argparse would use --method key to override
         cfg = load_settings()
         assert cfg["method"] == "mouse"  # from file
-        # In real CLI, --method key would override via argparse
-        # The load_settings() call is just defaults — CLI args override

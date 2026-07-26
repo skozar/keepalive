@@ -12,6 +12,9 @@ dev:
 	$(PDM) install --dev
 
 test:
+	$(PDM) run pytest tests/unit/ -v
+
+test-all:
 	$(PDM) run pytest -v
 
 lint:

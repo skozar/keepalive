@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import subprocess
 import sys
 from typing import Any
 
@@ -12,15 +11,13 @@ from keepalive.config import (
     DEFAULT_METHOD,
     DEFAULT_SCHEDULE,
     KEY_CODES,
-    LAUNCHD_LABEL,
-    LOG_FILE,
-    PLIST_PATH,
     load_settings,
     save_settings,
 )
 from keepalive.daemon import daemon
+from keepalive.drivers.factory import create_input_driver, create_scheduler
 from keepalive.log_config import log
-from keepalive.plist import PLIST_TEMPLATE, binary_path
+from keepalive.protocols import InputDriver, SchedulerDriver
 
 # ── JSON encoder helper ──────────────────────────────────────────────────────
 
@@ -39,62 +36,52 @@ def _status_json(running: bool, cfg: dict[str, Any] | None) -> str:
 # ── commands ─────────────────────────────────────────────────────────────────
 
 
-def cmd_start(schedule: str, idle: int, method: str, key: str) -> None:
-    """Install and start the launchd agent."""
-    if PLIST_PATH.exists():
+def cmd_start(
+    schedule: str,
+    idle: int,
+    method: str,
+    key: str,
+    *,
+    sched: SchedulerDriver | None = None,
+) -> None:
+    """Install and start the OS-level scheduler agent."""
+    if sched is None:
+        sched = create_scheduler()
+
+    if sched.is_running():
         print("⚠️  Agent already installed. Run 'keepalive-cli stop' first to reconfigure.")
         sys.exit(1)
 
-    # Persist to settings.json so the GUI (or future runs) picks it up
     save_settings(schedule, idle, method, key)
+    sched.install(binary=sys.argv[0], schedule=schedule, idle=idle, method=method, key=key)
 
-    PLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
-    plist_xml = PLIST_TEMPLATE.format(
-        label=LAUNCHD_LABEL,
-        binary=binary_path(),
-        schedule=schedule,
-        idle=str(idle),
-        method=method,
-        key=key,
-        log_file=str(LOG_FILE),
-    )
-    PLIST_PATH.write_text(plist_xml)
-    subprocess.run(["launchctl", "load", str(PLIST_PATH)], check=True)
-    log.info(
-        "Installed and started — schedule %s, idle %ds, method=%s, key=%s",
-        schedule,
-        idle,
-        method,
-        key,
-    )
     extra = f", key={key}" if method in ("key", "both") else ""
     print(f"✅ Agent started — schedule {schedule}, idle {idle}s, method={method}{extra}")
-    print(f"   Logs: {LOG_FILE}")
 
 
-def cmd_stop() -> None:
-    """Unload and remove the launchd agent."""
-    if PLIST_PATH.exists():
-        subprocess.run(["launchctl", "unload", str(PLIST_PATH)], check=False)
-        PLIST_PATH.unlink()
+def cmd_stop(*, sched: SchedulerDriver | None = None) -> None:
+    """Unload and remove the OS-level scheduler agent."""
+    if sched is None:
+        sched = create_scheduler()
+
+    if sched.is_running():
+        sched.uninstall()
         log.info("Stopped and uninstalled")
         print("✅ Agent stopped")
     else:
         print("ℹ️  Agent is not installed")
 
 
-def cmd_status(json_output: bool = False) -> None:
+def cmd_status(
+    json_output: bool = False,
+    *,
+    sched: SchedulerDriver | None = None,
+) -> None:
     """Show agent status + current settings from settings.json."""
-    try:
-        result = subprocess.run(
-            ["launchctl", "list", LAUNCHD_LABEL],
-            capture_output=True,
-            text=True,
-        )
-        running: bool = bool(result.returncode == 0 and result.stdout.strip())
-    except FileNotFoundError:
-        running = False
+    if sched is None:
+        sched = create_scheduler()
 
+    running = sched.is_running()
     cfg = load_settings()
 
     if json_output:
@@ -113,14 +100,25 @@ def cmd_status(json_output: bool = False) -> None:
     print(f"   method   : {method}{extra}")
 
 
-def cmd_run(schedule: str, idle: int, method: str, key: str) -> None:
+def cmd_run(
+    schedule: str,
+    idle: int,
+    method: str,
+    key: str,
+    *,
+    input_drv: InputDriver | None = None,
+    daemon_fn: object = daemon,
+) -> None:
     """Run daemon in foreground for testing."""
+    if input_drv is None:
+        input_drv = create_input_driver()
+
     extra = f", key={key}" if method in ("key", "both") else ""
     print(
         f"🟢 Foreground mode — schedule {schedule}, idle {idle}s, "
         f"method={method}{extra} (Ctrl+C to stop)"
     )
-    daemon(schedule, idle, method, key)
+    daemon_fn(schedule, idle, method, key, input_drv)  # type: ignore[operator]
 
 
 # ── shared args ──────────────────────────────────────────────────────────────
@@ -129,7 +127,7 @@ def cmd_run(schedule: str, idle: int, method: str, key: str) -> None:
 def _add_common_args(
     parser: argparse.ArgumentParser, defaults: dict[str, Any] | None = None
 ) -> None:
-    """Add --schedule/--idle/--method/--key with defaults from settings or hardcoded."""
+    """Add --schedule/--idle/--method/--key."""
     ds: dict[str, Any] = defaults if defaults is not None else {}
     schedule_default = ds.get("schedule", DEFAULT_SCHEDULE)
     idle_default = ds.get("idle", DEFAULT_IDLE)

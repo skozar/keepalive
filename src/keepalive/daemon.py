@@ -1,26 +1,12 @@
-"""Daemon loop and input simulation functions."""
+"""Daemon loop — platform-independent (depends only on InputDriver protocol)."""
 
 import random
-import subprocess
 import time
 from datetime import datetime
-from typing import cast
 
-from keepalive.config import KEY_CODES, parse_schedule
+from keepalive.config import parse_schedule
 from keepalive.log_config import log
-
-
-def idle_seconds() -> float:
-    """Seconds since last user input (keyboard or mouse)."""
-    import Quartz
-
-    return cast(
-        float,
-        Quartz.CGEventSourceSecondsSinceLastEventType(
-            Quartz.kCGEventSourceStateCombinedSessionState,
-            Quartz.kCGAnyInputEventType,
-        ),
-    )
+from keepalive.protocols import InputDriver
 
 
 def in_active_window(start_hour: int, end_hour: int, now: datetime | None = None) -> bool:
@@ -30,36 +16,20 @@ def in_active_window(start_hour: int, end_hour: int, now: datetime | None = None
     return start_hour <= now.hour < end_hour
 
 
-def jiggle() -> None:
-    """Move cursor 1 px right and back — resets idle timer imperceptibly."""
-    import Quartz
+def daemon(
+    schedule: str,
+    idle_threshold: int,
+    method: str,
+    key: str,
+    input_drv: InputDriver,
+    *,
+    max_iterations: int | None = None,
+) -> None:
+    """Run the main daemon loop.
 
-    pos = Quartz.CGEventGetLocation(Quartz.CGEventCreate(None))
-    x, y = int(pos.x), int(pos.y)
-
-    move = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, (x + 1, y), 0)
-    Quartz.CGEventPost(Quartz.kCGSessionEventTap, move)
-    time.sleep(0.05)
-
-    move = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, (x, y), 0)
-    Quartz.CGEventPost(Quartz.kCGSessionEventTap, move)
-
-
-def press_key(key_name: str) -> None:
-    """Press a function key via AppleScript — resets idle timer."""
-    code = KEY_CODES.get(key_name)
-    if code is None:
-        log.error("Unknown key: %s", key_name)
-        return
-    subprocess.run(
-        ["osascript", "-e", f'tell application "System Events" to key code {code}'],
-        capture_output=True,
-        timeout=5,
-    )
-
-
-def daemon(schedule: str, idle_threshold: int, method: str, key: str) -> None:
-    """Run the main daemon loop — never returns."""
+    *max_iterations* is for testing only — the production path
+    calls ``daemon(..., max_iterations=None)`` which runs forever.
+    """
     start_hour, end_hour = parse_schedule(schedule)
     log.info(
         "Daemon started — %02d:00–%02d:00, idle %ds, method=%s, key=%s",
@@ -70,15 +40,20 @@ def daemon(schedule: str, idle_threshold: int, method: str, key: str) -> None:
         key,
     )
 
+    iteration = 0
     while True:
+        if max_iterations is not None and iteration >= max_iterations:
+            break
+        iteration += 1
+
         try:
             if in_active_window(start_hour, end_hour):
-                idle = idle_seconds()
+                idle = input_drv.idle_seconds()
                 if idle >= idle_threshold:
                     if method in ("mouse", "both"):
-                        jiggle()
+                        input_drv.jiggle()
                     if method in ("key", "both"):
-                        press_key(key)
+                        input_drv.press_key(key)
                     log.info("Keepalive fired (method=%s, idle %.0fs)", method, idle)
                 else:
                     log.info("Active (idle %.0fs), skipping", idle)
