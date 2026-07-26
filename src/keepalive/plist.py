@@ -3,8 +3,10 @@
 import os
 import plistlib
 import sys
+from pathlib import Path
+from typing import Any
 
-from keepalive.config import PLIST_PATH, LAUNCHD_LABEL, LOG_FILE, DEFAULT_METHOD, DEFAULT_SCHEDULE, DEFAULT_IDLE
+from keepalive.config import PLIST_PATH
 
 PLIST_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -43,16 +45,15 @@ def binary_path() -> str:
     return os.path.abspath(sys.argv[0])
 
 
-def read_plist_config(plist_path=None) -> dict | None:
+def read_plist_config(plist_path: Path | None = None) -> dict[str, str] | None:
     """Parse plist ProgramArguments into a {key: value} dict. None if no plist."""
-    if plist_path is None:
-        plist_path = PLIST_PATH
-    if not plist_path.exists():
+    target = plist_path if plist_path is not None else PLIST_PATH
+    if not target.exists():
         return None
-    with open(plist_path, "rb") as f:
-        plist = plistlib.load(f)
-    args = plist.get("ProgramArguments", [])
-    cfg = {}
+    with open(target, "rb") as f:
+        plist: dict[str, Any] = plistlib.load(f)
+    args: list[str] = plist.get("ProgramArguments", [])
+    cfg: dict[str, str] = {}
     for i, arg in enumerate(args):
         if arg.startswith("--") and i + 1 < len(args):
             cfg[arg.lstrip("-")] = args[i + 1]

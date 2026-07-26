@@ -11,4 +11,5 @@ jobs:
         with:
           python-version: "3.14"
       - run: pdm install --dev
-      - run: pdm run pytest tests/ -v --cov=keepalive --cov-report=term-missing
+      - run: make lint
+      - run: make test

@@ -1,10 +1,9 @@
 """Tests for settings.json load/save (config.py)."""
 
 import json
-import tempfile
 from pathlib import Path
 
-from keepalive.config import load_settings, save_settings, SETTINGS_PATH
+from keepalive.config import load_settings, save_settings
 
 
 class TestLoadSettings:
@@ -21,13 +20,17 @@ class TestLoadSettings:
     def test_load_valid(self, monkeypatch, tmp_path):
         """settings.json with all fields → correct dict, schedule merged."""
         f = tmp_path / "settings.json"
-        f.write_text(json.dumps({
-            "schedule_from": "09:30",
-            "schedule_to": "18:45",
-            "idle": 120,
-            "method": "key",
-            "key": "f14",
-        }))
+        f.write_text(
+            json.dumps(
+                {
+                    "schedule_from": "09:30",
+                    "schedule_to": "18:45",
+                    "idle": 120,
+                    "method": "key",
+                    "key": "f14",
+                }
+            )
+        )
         monkeypatch.setattr("keepalive.config.SETTINGS_PATH", f)
         cfg = load_settings()
         assert cfg["schedule"] == "09:30-18:45"
@@ -38,26 +41,34 @@ class TestLoadSettings:
     def test_load_partial(self, monkeypatch, tmp_path):
         """Missing method → default, rest from file."""
         f = tmp_path / "settings.json"
-        f.write_text(json.dumps({
-            "schedule_from": "22:00",
-            "schedule_to": "06:00",
-            "idle": 300,
-        }))
+        f.write_text(
+            json.dumps(
+                {
+                    "schedule_from": "22:00",
+                    "schedule_to": "06:00",
+                    "idle": 300,
+                }
+            )
+        )
         monkeypatch.setattr("keepalive.config.SETTINGS_PATH", f)
         cfg = load_settings()
         assert cfg["schedule"] == "22:00-06:00"
         assert cfg["idle"] == 300
         assert cfg["method"] == "mouse"  # default
-        assert cfg["key"] == "f13"       # default
+        assert cfg["key"] == "f13"  # default
 
     def test_load_midnight(self, monkeypatch, tmp_path):
         """Schedule crossing midnight."""
         f = tmp_path / "settings.json"
-        f.write_text(json.dumps({
-            "schedule_from": "23:00",
-            "schedule_to": "02:00",
-            "idle": 180,
-        }))
+        f.write_text(
+            json.dumps(
+                {
+                    "schedule_from": "23:00",
+                    "schedule_to": "02:00",
+                    "idle": 180,
+                }
+            )
+        )
         monkeypatch.setattr("keepalive.config.SETTINGS_PATH", f)
         cfg = load_settings()
         assert cfg["schedule"] == "23:00-02:00"

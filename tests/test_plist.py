@@ -1,7 +1,6 @@
 import plistlib
-from pathlib import Path
-from keepalive.plist import read_plist_config
 
+from keepalive.plist import read_plist_config
 
 PLIST_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"

@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import Any
 
 APP_NAME = "keepalive"
 LOG_DIR = Path.home() / "Library" / "Logs" / APP_NAME
@@ -15,7 +16,7 @@ DEFAULT_IDLE = 180
 DEFAULT_METHOD = "mouse"
 DEFAULT_KEY = "f13"
 
-KEY_CODES = {
+KEY_CODES: dict[str, int] = {
     "f13": 105,
     "f14": 106,
     "f15": 107,
@@ -28,13 +29,13 @@ def parse_schedule(raw: str) -> tuple[int, int]:
     return int(start_str.split(":")[0]), int(end_str.split(":")[0])
 
 
-def load_settings() -> dict:
+def load_settings() -> dict[str, Any]:
     """Read ~/.config/keepalive/settings.json, merge with defaults.
 
     GUI wrote schedule_from/schedule_to (e.g. "08:00", "17:00").
     We merge them into the internal ``schedule`` format ``"08:00-17:00"``.
     """
-    defaults = {
+    defaults: dict[str, Any] = {
         "schedule": DEFAULT_SCHEDULE,
         "idle": DEFAULT_IDLE,
         "method": DEFAULT_METHOD,
@@ -44,7 +45,7 @@ def load_settings() -> dict:
         return defaults
 
     try:
-        data = json.loads(SETTINGS_PATH.read_text())
+        data: Any = json.loads(SETTINGS_PATH.read_text())
     except (json.JSONDecodeError, OSError):
         return defaults
 

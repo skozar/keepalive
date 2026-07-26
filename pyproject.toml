@@ -25,4 +25,41 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=6.0",
     "pyinstaller>=6.0; sys_platform == \"darwin\"",
+    "ruff>=0.16.0",
+    "codespell>=2.4.3",
+    "pre-commit>=4.6.1",
+    "mypy>=2.3.0",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "C90"]
+ignore = ["E501"]  # line length handled by formatter
+
+[tool.ruff.lint.isort]
+known-first-party = ["keepalive"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["Quartz", "pyobjc_framework_Quartz"]
+ignore_missing_imports = true
+
+[tool.codespell]
+skip = "*.lock,dist,*.spec,.venv,*.icns,*.png,build"
+ignore-words-list = "crate"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

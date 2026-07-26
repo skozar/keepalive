@@ -14,6 +14,12 @@ dev:
 test:
 	$(PDM) run pytest -v
 
+lint:
+	$(PDM) run ruff check
+	$(PDM) run ruff format --check
+	$(PDM) run mypy src/ --strict
+	$(PDM) run codespell
+
 build:
 	rm -rf dist/$(APP_NAME)
 	$(PDM) run pyinstaller --onedir --name $(APP_NAME) src/keepalive/__main__.py
@@ -27,6 +33,8 @@ release:
 	@[ -n "$(VERSION)" ] || (echo "❌ VERSION= required, e.g. make release VERSION=0.7.0" && exit 1)
 	@echo "🔨 Step 1/6: Running tests..."
 	@$(MAKE) test
+	@echo "🔨 Step 1.5: Linting..."
+	@$(MAKE) lint
 	@echo "🔨 Step 2/6: Building CLI binary..."
 	@$(MAKE) build
 	@echo "📦 Packaging..."

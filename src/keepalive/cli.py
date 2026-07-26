@@ -4,22 +4,30 @@ import argparse
 import json
 import subprocess
 import sys
+from typing import Any
 
 from keepalive.config import (
-    DEFAULT_SCHEDULE, DEFAULT_IDLE, DEFAULT_METHOD, DEFAULT_KEY,
-    KEY_CODES, LAUNCHD_LABEL, LOG_FILE, PLIST_PATH,
-    load_settings, save_settings,
+    DEFAULT_IDLE,
+    DEFAULT_KEY,
+    DEFAULT_METHOD,
+    DEFAULT_SCHEDULE,
+    KEY_CODES,
+    LAUNCHD_LABEL,
+    LOG_FILE,
+    PLIST_PATH,
+    load_settings,
+    save_settings,
 )
 from keepalive.daemon import daemon
 from keepalive.log_config import log
 from keepalive.plist import PLIST_TEMPLATE, binary_path
 
-
 # ── JSON encoder helper ──────────────────────────────────────────────────────
 
-def _status_json(running: bool, cfg: dict | None) -> str:
+
+def _status_json(running: bool, cfg: dict[str, Any] | None) -> str:
     """Return status as JSON string for --json output."""
-    result: dict = {"running": running}
+    result: dict[str, Any] = {"running": running}
     if cfg and running:
         result["schedule"] = cfg.get("schedule", DEFAULT_SCHEDULE)
         result["idle"] = cfg.get("idle", DEFAULT_IDLE)
@@ -30,7 +38,8 @@ def _status_json(running: bool, cfg: dict | None) -> str:
 
 # ── commands ─────────────────────────────────────────────────────────────────
 
-def cmd_start(schedule: str, idle: int, method: str, key: str):
+
+def cmd_start(schedule: str, idle: int, method: str, key: str) -> None:
     """Install and start the launchd agent."""
     if PLIST_PATH.exists():
         print("⚠️  Agent already installed. Run 'keepalive-cli stop' first to reconfigure.")
@@ -51,14 +60,19 @@ def cmd_start(schedule: str, idle: int, method: str, key: str):
     )
     PLIST_PATH.write_text(plist_xml)
     subprocess.run(["launchctl", "load", str(PLIST_PATH)], check=True)
-    log.info("Installed and started — schedule %s, idle %ds, method=%s, key=%s",
-             schedule, idle, method, key)
+    log.info(
+        "Installed and started — schedule %s, idle %ds, method=%s, key=%s",
+        schedule,
+        idle,
+        method,
+        key,
+    )
     extra = f", key={key}" if method in ("key", "both") else ""
     print(f"✅ Agent started — schedule {schedule}, idle {idle}s, method={method}{extra}")
     print(f"   Logs: {LOG_FILE}")
 
 
-def cmd_stop():
+def cmd_stop() -> None:
     """Unload and remove the launchd agent."""
     if PLIST_PATH.exists():
         subprocess.run(["launchctl", "unload", str(PLIST_PATH)], check=False)
@@ -69,14 +83,15 @@ def cmd_stop():
         print("ℹ️  Agent is not installed")
 
 
-def cmd_status(json_output: bool = False):
+def cmd_status(json_output: bool = False) -> None:
     """Show agent status + current settings from settings.json."""
     try:
         result = subprocess.run(
             ["launchctl", "list", LAUNCHD_LABEL],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
-        running = result.returncode == 0 and result.stdout.strip()
+        running: bool = bool(result.returncode == 0 and result.stdout.strip())
     except FileNotFoundError:
         running = False
 
@@ -98,39 +113,64 @@ def cmd_status(json_output: bool = False):
     print(f"   method   : {method}{extra}")
 
 
-def cmd_run(schedule: str, idle: int, method: str, key: str):
+def cmd_run(schedule: str, idle: int, method: str, key: str) -> None:
     """Run daemon in foreground for testing."""
     extra = f", key={key}" if method in ("key", "both") else ""
-    print(f"🟢 Foreground mode — schedule {schedule}, idle {idle}s, method={method}{extra} (Ctrl+C to stop)")
+    print(
+        f"🟢 Foreground mode — schedule {schedule}, idle {idle}s, "
+        f"method={method}{extra} (Ctrl+C to stop)"
+    )
     daemon(schedule, idle, method, key)
 
 
 # ── shared args ──────────────────────────────────────────────────────────────
 
-def _add_common_args(parser, defaults: dict | None = None):
+
+def _add_common_args(
+    parser: argparse.ArgumentParser, defaults: dict[str, Any] | None = None
+) -> None:
     """Add --schedule/--idle/--method/--key with defaults from settings or hardcoded."""
-    ds = defaults or {}
+    ds: dict[str, Any] = defaults if defaults is not None else {}
     schedule_default = ds.get("schedule", DEFAULT_SCHEDULE)
     idle_default = ds.get("idle", DEFAULT_IDLE)
     method_default = ds.get("method", DEFAULT_METHOD)
     key_default = ds.get("key", DEFAULT_KEY)
 
-    parser.add_argument("--schedule", default=schedule_default,
-                        help=f"Active window (default: {schedule_default})")
-    parser.add_argument("--idle", type=int, default=idle_default,
-                        help=f"Idle threshold in seconds (default: {idle_default})")
-    parser.add_argument("--method", choices=("mouse", "key", "both"), default=method_default,
-                        help=f"Activity method (default: {method_default})")
-    parser.add_argument("--key", choices=list(KEY_CODES), default=key_default,
-                        help=f"Key to press (default: {key_default})")
+    parser.add_argument(
+        "--schedule",
+        default=schedule_default,
+        help=f"Active window (default: {schedule_default})",
+    )
+    parser.add_argument(
+        "--idle",
+        type=int,
+        default=idle_default,
+        help=f"Idle threshold in seconds (default: {idle_default})",
+    )
+    parser.add_argument(
+        "--method",
+        choices=("mouse", "key", "both"),
+        default=method_default,
+        help=f"Activity method (default: {method_default})",
+    )
+    parser.add_argument(
+        "--key",
+        choices=list(KEY_CODES),
+        default=key_default,
+        help=f"Key to press (default: {key_default})",
+    )
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
 
-def main():
+
+def main() -> None:
     parser = argparse.ArgumentParser(
         prog="keepalive-cli",
-        description="Keep macOS awake during work hours — stays green in messengers (Slack, Teams, Discord).",
+        description=(
+            "Keep macOS awake during work hours — stays green in messengers "
+            "(Slack, Teams, Discord)."
+        ),
     )
     sub = parser.add_subparsers(dest="command", title="commands")
 

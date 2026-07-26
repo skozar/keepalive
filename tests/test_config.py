@@ -1,4 +1,5 @@
 import datetime
+
 from keepalive.config import parse_schedule
 from keepalive.daemon import in_active_window
 

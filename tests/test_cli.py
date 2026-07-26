@@ -1,9 +1,9 @@
 import json
 import subprocess
 import sys
+
 import pytest
 
-from pathlib import Path
 from keepalive.config import load_settings, save_settings
 
 
@@ -12,7 +12,8 @@ class TestCLI:
         """Binary runs --help without crashing."""
         result = subprocess.run(
             [sys.executable, "-m", "keepalive", "--help"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         assert result.returncode == 0
         assert "usage: keepalive-cli" in result.stdout
@@ -20,7 +21,8 @@ class TestCLI:
     def test_start_help(self):
         result = subprocess.run(
             [sys.executable, "-m", "keepalive", "start", "--help"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         assert result.returncode == 0
         assert "--method" in result.stdout
@@ -30,7 +32,8 @@ class TestCLI:
     def test_status_smoke(self):
         result = subprocess.run(
             [sys.executable, "-m", "keepalive", "status"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         assert result.returncode == 0
         assert "keepalive-cli" in result.stdout.lower()
@@ -40,7 +43,8 @@ class TestCLI:
         """status --json returns valid JSON with expected keys."""
         result = subprocess.run(
             [sys.executable, "-m", "keepalive", "status", "--json"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         assert result.returncode == 0
         data = json.loads(result.stdout)
