@@ -55,6 +55,23 @@ class MacOSInput:
             timeout=5,
         )
 
+    def check_permissions(self) -> dict[str, bool]:
+        """Probe whether Accessibility is granted.
+
+        We try a no-op osascript call — if it hangs or fails, permissions
+        are missing.
+        """
+        try:
+            result = subprocess.run(
+                ["osascript", "-e", ""],
+                capture_output=True,
+                timeout=3,
+            )
+            ok = result.returncode == 0
+        except subprocess.TimeoutExpired, FileNotFoundError:
+            ok = False
+        return {"accessibility": ok}
+
 
 # ── SchedulerDriver ─────────────────────────────────────────────────────────
 

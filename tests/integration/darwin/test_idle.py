@@ -21,17 +21,24 @@ class TestMacOSIdle:
         from keepalive.drivers.macos import MacOSInput
 
         drv = MacOSInput()
-        drv.jiggle()  # should not raise
+        drv.jiggle()
 
     def test_press_key_lookup_resolves(self):
-        """press_key resolves its key code — actual osascript needs
-        Accessibility permissions and may time out in CI/sandbox."""
         from keepalive.config import KEY_CODES
         from keepalive.drivers.macos import MacOSInput
 
         drv = MacOSInput()
-        # Verify the key lookup works (no osascript call yet).
         code = KEY_CODES.get("f13")
         assert code is not None
-        # press_key is callable — but don't run the subprocess in test.
         assert callable(drv.press_key)
+
+
+class TestMacOSPermissions:
+    def test_check_permissions_returns_bool(self):
+        from keepalive.drivers.macos import MacOSInput
+
+        drv = MacOSInput()
+        perms = drv.check_permissions()
+        assert isinstance(perms, dict)
+        assert "accessibility" in perms
+        assert isinstance(perms["accessibility"], bool)

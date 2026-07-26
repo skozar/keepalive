@@ -4,8 +4,9 @@
 class FakeInput:
     """Records every call — no real I/O."""
 
-    def __init__(self, idle: float = 0) -> None:
+    def __init__(self, idle: float = 0, permissions: dict[str, bool] | None = None) -> None:
         self._idle = idle
+        self._permissions = permissions or {"accessibility": True}
         self.jiggle_calls = 0
         self.pressed_keys: list[str] = []
         self.key_errors: list[str] = []
@@ -18,6 +19,9 @@ class FakeInput:
 
     def press_key(self, key_name: str) -> None:
         self.pressed_keys.append(key_name)
+
+    def check_permissions(self) -> dict[str, bool]:
+        return dict(self._permissions)
 
 
 class FakeScheduler:

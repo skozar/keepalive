@@ -23,6 +23,15 @@ class InputDriver(Protocol):
         """Press a function key (f13, f14, f15)."""
         ...
 
+    def check_permissions(self) -> dict[str, bool]:
+        """Return {permission_name: granted} for all required OS permissions.
+
+        Keepalive needs Accessibility on macOS, ``input`` group on Linux.
+        The driver only reports factuality — *how* to explain to the user
+        lives in ``permissions.py`` at the CLI layer.
+        """
+        ...
+
 
 class SchedulerDriver(Protocol):
     """Install / uninstall / check the OS-level scheduler agent."""
