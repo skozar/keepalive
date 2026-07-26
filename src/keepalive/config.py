@@ -46,7 +46,7 @@ def load_settings() -> dict[str, Any]:
 
     try:
         data: Any = json.loads(SETTINGS_PATH.read_text())
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError):  # fmt: skip
         return defaults
 
     # GUI format: schedule_from + schedule_to
