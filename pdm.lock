@@ -5,7 +5,7 @@
 groups = ["default", "dev"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:c08511196f0f6dd652d1a17e13026d21618642bb3b6a37c986772e79c9c837b2"
+content_hash = "sha256:0605ae890f5ccb36dac1e69a6f2996560e620f71bc212e8e27d95b8795feb43e"
 
 [[metadata.targets]]
 requires_python = ">=3.14,<3.16"
@@ -414,6 +414,20 @@ files = [
 ]
 
 [[package]]
+name = "prompt-toolkit"
+version = "3.0.53"
+requires_python = ">=3.10"
+summary = "Library for building powerful interactive command lines in Python"
+groups = ["default"]
+dependencies = [
+    "wcwidth>=0.1.4",
+]
+files = [
+    {file = "prompt_toolkit-3.0.53-py3-none-any.whl", hash = "sha256:01c0891d7f9237d5e339f7d3e42cdae80b7534abb1c7c0e3352efba6231492f2"},
+    {file = "prompt_toolkit-3.0.53.tar.gz", hash = "sha256:9ec8a0ad96d5c56148b3f914aa79c1564c3fde5d2e6b876e7bc327e353cf8fa6"},
+]
+
+[[package]]
 name = "pygments"
 version = "2.20.0"
 requires_python = ">=3.9"
@@ -604,6 +618,20 @@ files = [
 ]
 
 [[package]]
+name = "questionary"
+version = "2.1.1"
+requires_python = ">=3.9"
+summary = "Python library to build pretty command line user prompts ⭐️"
+groups = ["default"]
+dependencies = [
+    "prompt-toolkit<4.0,>=2.0",
+]
+files = [
+    {file = "questionary-2.1.1-py3-none-any.whl", hash = "sha256:a51af13f345f1cdea62347589fbb6df3b290306ab8930713bfae4d475a7d4a59"},
+    {file = "questionary-2.1.1.tar.gz", hash = "sha256:3d7e980292bb0107abaa79c68dd3eee3c561b83a0f89ae482860b181c8bd412d"},
+]
+
+[[package]]
 name = "ruff"
 version = "0.16.0"
 requires_python = ">=3.7"
@@ -670,4 +698,15 @@ dependencies = [
 files = [
     {file = "virtualenv-21.7.0-py3-none-any.whl", hash = "sha256:a8370c1c5530fbabf955e40b8fbbc68a431648b10f9433faa587db30a06e51dd"},
     {file = "virtualenv-21.7.0.tar.gz", hash = "sha256:7f9519b9432ff11b6e1a3e94061664efc2ff99ea21780e3cf4f6bd0a5da8b37c"},
+]
+
+[[package]]
+name = "wcwidth"
+version = "0.8.2"
+requires_python = ">=3.8"
+summary = "Measures the displayed width of unicode strings in a terminal"
+groups = ["default"]
+files = [
+    {file = "wcwidth-0.8.2-py3-none-any.whl", hash = "sha256:d63947694a0539a1d51e01eda7caf800c291020e6cdd7e28ad7b14dd33ad4f85"},
+    {file = "wcwidth-0.8.2.tar.gz", hash = "sha256:91fbef97204b96a3d4d421609b80340b760cf33e26da123ff243d76b1fda8dda"},
 ]

@@ -36,10 +36,10 @@ class TestCmdRunDispatch:
             fmt=fmt,
         )
         r = spy_daemon.received
-        assert r["schedule"] == "09:00-18:00"
         assert r["idle"] == 120
         assert r["method"] == "key"
         assert r["key"] == "f15"
+        assert r["conditions"] is not None  # built from config
 
     def test_refuses_when_permissions_missing(self):
         fake = FakeInput(idle=0, permissions={"accessibility": False})

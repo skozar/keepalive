@@ -17,15 +17,21 @@ def fake_scheduler() -> FakeScheduler:
 
 @pytest.fixture
 def spy_daemon():
-    """Returns a callable + a mutable dict to capture daemon args."""
+    """Returns a callable + a mutable dict to capture daemon args.
+
+    Matches the new daemon signature:
+        daemon(idle, method, key, input_drv, *, schedule=..., conditions=...)
+    """
     received: dict[str, object] = {}
 
-    def spy(schedule, idle, method, key, input_drv):
-        received["schedule"] = schedule
+    def spy(idle, method, key, input_drv, **kwargs):
         received["idle"] = idle
         received["method"] = method
         received["key"] = key
         received["input_drv"] = input_drv
+        received["conditions"] = kwargs.get("conditions")
+        received["schedule"] = kwargs.get("schedule")
+        received["caffeinate_mode"] = kwargs.get("caffeinate_mode")
 
     spy.received = received  # type: ignore[attr-defined]
     return spy

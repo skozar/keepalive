@@ -54,21 +54,26 @@ class TestCLI:
         assert "running" in data
 
     def test_start_respects_settings(self, tmp_path, monkeypatch):
-        settings_file = tmp_path / "settings.json"
+        config_dir = tmp_path / ".config" / "keepalive"
+        config_dir.mkdir(parents=True)
+        settings_file = config_dir / "settings.json"
         monkeypatch.setattr("keepalive.config.SETTINGS_PATH", settings_file)
         save_settings("10:00-14:00", 60, "both", "f15")
         cfg = load_settings()
-        assert cfg["schedule"] == "10:00-14:00"
-        assert cfg["idle"] == 60
-        assert cfg["method"] == "both"
-        assert cfg["key"] == "f15"
+        assert cfg["triggers"]["schedule"]["from"] == "10:00"
+        assert cfg["triggers"]["schedule"]["to"] == "14:00"
+        assert cfg["activity"]["idle"] == 60
+        assert cfg["activity"]["method"] == "both"
+        assert cfg["activity"]["key"] == "f15"
 
     def test_start_flag_overrides_default(self, tmp_path, monkeypatch):
-        settings_file = tmp_path / "settings.json"
+        config_dir = tmp_path / ".config" / "keepalive"
+        config_dir.mkdir(parents=True)
+        settings_file = config_dir / "settings.json"
         monkeypatch.setattr("keepalive.config.SETTINGS_PATH", settings_file)
         save_settings("08:00-17:00", 180, "mouse", "f13")
         cfg = load_settings()
-        assert cfg["method"] == "mouse"
+        assert cfg["activity"]["method"] == "mouse"
 
     def test_help_with_global_json(self):
         result = subprocess.run(

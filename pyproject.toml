@@ -7,6 +7,7 @@ requires-python = ">=3.14,<3.16"
 dependencies = [
     "click>=8.1",
     "pyobjc-framework-Quartz>=12.0; sys_platform == \"darwin\"",
+    "questionary>=2.1.1",
 ]
 
 
@@ -61,7 +62,7 @@ ignore_missing_imports = true
 
 [tool.codespell]
 skip = "*.lock,dist,*.spec,.venv,*.icns,*.png,build"
-ignore-words-list = "crate"
+ignore-words-list = "crate,caf"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

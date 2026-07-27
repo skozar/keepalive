@@ -20,11 +20,11 @@ class TestLiveDaemon:
         from keepalive.daemon import daemon
 
         daemon(
-            "00:00-23:59",
-            idle_threshold=10_000,
-            method="mouse",
-            key="f13",
-            input_drv=drv,
+            10_000,
+            "mouse",
+            "f13",
+            drv,
+            schedule="00:00-23:59",
             max_iterations=1,
         )
         # if we get here without exception, test passes

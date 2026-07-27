@@ -1,22 +1,29 @@
 """CLI: start, stop, status, run, setup, demo."""
 
+import json
 import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import click
 
 from keepalive.config import (
+    CAFFEINATE_MODES,
     DEFAULT_IDLE,
     DEFAULT_KEY,
     DEFAULT_METHOD,
     DEFAULT_SCHEDULE,
     KEY_CODES,
     LOG_FILE,
+    METHODS,
+    get_system_sleep,
     load_settings,
     save_settings,
+    write_config,
 )
 from keepalive.daemon import daemon
 from keepalive.drivers.factory import create_input_driver, create_scheduler
@@ -87,6 +94,53 @@ def cmd_setup(
         click.echo()
 
 
+# ── trigger conditions builder ────────────────────────────────────────────
+
+
+def _build_conditions(cfg: dict[str, Any]) -> list[Callable[[], bool]]:
+    """Assemble OR-conditions from the triggers section of the config."""
+    from keepalive.triggers.app import get_running_apps
+    from keepalive.triggers.schedule import in_active_window as _schedule_check
+    from keepalive.triggers.wifi import get_current_ssid
+
+    conditions: list[Callable[[], bool]] = []
+    triggers = cfg.get("triggers", {})
+
+    sch = triggers.get("schedule", {})
+    if sch.get("enabled", True):
+        hours = (
+            int(str(sch.get("from", "08:00")).split(":")[0]),
+            int(str(sch.get("to", "17:00")).split(":")[0]),
+        )
+
+        def _sched() -> bool:
+            return _schedule_check(hours)
+
+        conditions.append(_sched)
+
+    wf = triggers.get("wifi", {})
+    if wf.get("enabled") and wf.get("ssids"):
+        target_ssids = set(str(s) for s in wf["ssids"])
+
+        def _wifi() -> bool:
+            ssid = get_current_ssid()
+            return ssid is not None and ssid in target_ssids
+
+        conditions.append(_wifi)
+
+    ap = triggers.get("app", {})
+    if ap.get("enabled") and ap.get("apps"):
+        target_apps = set(str(a) for a in ap["apps"])
+
+        def _app() -> bool:
+            running = set(get_running_apps())
+            return bool(running & target_apps)
+
+        conditions.append(_app)
+
+    return conditions
+
+
 def cmd_start(
     schedule: str,
     idle: int,
@@ -110,6 +164,15 @@ def cmd_start(
         sys.exit(1)
 
     _check_perms_or_die(input_drv, fmt)
+
+    # --- idle vs system sleep warning ---
+    sys_sleep = get_system_sleep()
+    if sys_sleep and idle > sys_sleep:
+        fmt.warning(
+            f"idle ({idle}s) > system sleep ({sys_sleep}s / {sys_sleep // 60}min) — "
+            "agent may miss before sleep. Enable Caffeinate: "
+            "keepalive-cli config setup"
+        )
 
     save_settings(schedule, idle, method, key)
     sched.install(
@@ -206,12 +269,31 @@ def cmd_run(
 
     _check_perms_or_die(input_drv, fmt)
 
+    # --- build conditions from config ---
+    cfg = load_settings()
+    conditions = _build_conditions(cfg)
+
+    # --- caffeinate ---
+    caf = cfg.get("caffeinate", {})
+    caf_mode: str | None = None
+    if caf.get("enabled"):
+        caf_mode = str(caf.get("mode", "display"))
+
+    # --- idle vs system sleep warning ---
+    sys_sleep = get_system_sleep()
+    if sys_sleep and idle > sys_sleep:
+        fmt.warning(
+            f"idle ({idle}s) > system sleep ({sys_sleep}s / {sys_sleep // 60}min) — "
+            "agent may miss before sleep. Enable Caffeinate: "
+            "keepalive-cli config setup"
+        )
+
     extra = f", key={key}" if method in ("key", "both") else ""
     fmt.info(
         f"🟢 Foreground mode — schedule {schedule}, idle {idle}s, "
         f"method={method}{extra} (Ctrl+C to stop)"
     )
-    daemon_fn(schedule, idle, method, key, input_drv)  # type: ignore[operator]
+    daemon_fn(idle, method, key, input_drv, conditions=conditions, caffeinate_mode=caf_mode)  # type: ignore[operator]
 
 
 # ── demo ─────────────────────────────────────────────────────────────────────
@@ -424,6 +506,326 @@ def cmd_demo(  # noqa: C901 (menu dispatch is inherently branchy)
         click.prompt("\nPress Enter to return to menu", default="", show_default=False)
 
 
+# ── config commands ────────────────────────────────────────────────────────
+
+
+def _edit_str(label: str, default: str) -> str:
+    import questionary
+
+    return questionary.text(f"{label}:", default=default).ask() or default
+
+
+def _edit_int(label: str, default: int, min_v: int = 10, max_v: int = 3600) -> int:
+    import questionary
+
+    while True:
+        raw = questionary.text(f"{label} [{min_v}–{max_v}]:", default=str(default)).ask()
+        try:
+            val = int(raw)
+            if min_v <= val <= max_v:
+                return val
+        except TypeError, ValueError:
+            pass
+
+
+def _select_one(label: str, choices: list[str], default: str) -> str:
+    import questionary
+
+    return questionary.select(label, choices=choices, default=default).ask() or default
+
+
+def _select_checkbox(label: str, choices: list[str], defaults: list[str]) -> list[str]:
+    import questionary
+
+    styled = [questionary.Choice(c, checked=c in defaults) for c in choices]
+    return questionary.checkbox(label, choices=styled).ask() or []
+
+
+def _autocomplete(label: str, choices: list[str], default: str = "") -> str:
+    import questionary
+
+    result = questionary.autocomplete(label, choices=choices, default=default).ask()
+    return result or default
+
+
+def cmd_config_setup(*, fmt: Formatter | None = None) -> None:  # noqa: C901 (dashboard UI)
+    """Interactive configuration dashboard using questionary."""
+    import questionary
+
+    if fmt is None:
+        fmt = TextFormatter()
+
+    if isinstance(fmt, JsonFormatter):
+        fmt.result({"available": False, "reason": "interactive only"})
+        return
+
+    cfg = load_settings()
+
+    while True:
+        # --- read current state ---
+        sys_sleep = get_system_sleep()
+        idle = cfg["activity"]["idle"]
+        method = cfg["activity"]["method"]
+        key_ = cfg["activity"]["key"]
+        caf_enabled = cfg["caffeinate"]["enabled"]
+        caf_mode = cfg["caffeinate"]["mode"]
+        lid = cfg["caffeinate"]["lid_closed"]
+        sch_enabled = cfg["triggers"]["schedule"]["enabled"]
+        sch_from = cfg["triggers"]["schedule"]["from"]
+        sch_to = cfg["triggers"]["schedule"]["to"]
+        wifi_enabled = cfg["triggers"]["wifi"]["enabled"]
+        wifi_ssids = cfg["triggers"]["wifi"]["ssids"]
+        app_enabled = cfg["triggers"]["app"]["enabled"]
+        app_apps = cfg["triggers"]["app"]["apps"]
+
+        # --- build menu ---
+        sections: list[dict[str, str]] = [
+            {"name": "⚙️  ACTIVITY — how keepalive simulates input", "value": "activity"},
+            {"name": "🔋 POWER — sleep prevention", "value": "power"},
+            {"name": "⏰ TRIGGERS — when keepalive fires", "value": "triggers"},
+            {"name": "💾 Save & Exit", "value": "save"},
+            {"name": "Exit without saving", "value": "exit"},
+        ]
+
+        click.clear()
+        click.secho("keepalive configuration", fg="cyan", bold=True)
+        click.echo("─" * 40)
+
+        # ACTIVITY summary
+        warns = ""
+        if sys_sleep and idle > sys_sleep:
+            warns = click.style(
+                f"  ⚠ idle > system sleep ({sys_sleep // 60} min) — may miss!", fg="red"
+            )
+        click.echo(f"  Idle:       {idle}s{warns}")
+        click.echo(f"  Method:     {method}")
+        click.echo(f"  Key:        {key_}")
+        click.echo()
+
+        # POWER summary
+        status = "enabled" if caf_enabled else "disabled"
+        lid_str = " + lid-closed" if lid else ""
+        click.echo(f"  Caffeinate: {status} ({caf_mode}{lid_str})")
+        click.echo()
+
+        # TRIGGERS summary
+        sch_str = f"{sch_from}–{sch_to}" if sch_enabled else "disabled"
+        click.echo(f"  Schedule:   {sch_str}")
+        wf_str = ", ".join(wifi_ssids) if wifi_ssids else "no networks"
+        click.echo(f"  WiFi:       {'enabled' if wifi_enabled else 'disabled'} ({wf_str})")
+        ap_str = ", ".join(app_apps[:3]) if app_apps else "none"
+        if len(app_apps) > 3:
+            ap_str += f" +{len(app_apps) - 3}"
+        click.echo(f"  App:        {'enabled' if app_enabled else 'disabled'} ({ap_str})")
+        click.echo()
+
+        choice = questionary.select("Section:", choices=[s["name"] for s in sections]).ask()
+
+        if choice is None or choice == "Exit without saving":
+            fmt.info("Setup aborted — no changes saved.")
+            return
+
+        if choice == "💾 Save & Exit":
+            errors = write_config(cfg)
+            if errors:
+                for e in errors:
+                    fmt.error(e)
+            else:
+                fmt.success("Configuration saved.")
+            return
+
+        # --- sub-menus ---
+        if choice == "⚙️  ACTIVITY — how keepalive simulates input":
+            sub = questionary.select(
+                "Edit:",
+                choices=["Idle", "Method", "Key", "Back"],
+            ).ask()
+            if sub == "Idle":
+                cfg["activity"]["idle"] = _edit_int("Idle threshold (seconds)", idle)
+            elif sub == "Method":
+                cfg["activity"]["method"] = _select_one("Method", list(METHODS), method)
+            elif sub == "Key":
+                cfg["activity"]["key"] = _select_one("Key", sorted(KEY_CODES), key_)
+
+        elif choice == "🔋 POWER — sleep prevention":
+            sub = questionary.select(
+                "Edit:",
+                choices=[
+                    f"Caffeinate ({'on' if caf_enabled else 'off'})",
+                    "Caffeinate mode",
+                    f"Lid-Closed ({'on' if lid else 'off'})",
+                    "Back",
+                ],
+            ).ask()
+            if sub and "Caffeinate " in sub and "mode" not in sub:
+                cfg["caffeinate"]["enabled"] = not caf_enabled
+                if not cfg["caffeinate"]["enabled"]:
+                    cfg["caffeinate"]["lid_closed"] = False
+            elif sub == "Caffeinate mode":
+                if caf_enabled:
+                    cfg["caffeinate"]["mode"] = _select_one(
+                        "Mode", list(CAFFEINATE_MODES), caf_mode
+                    )
+            elif sub and "Lid-Closed" in sub:
+                if not caf_enabled:
+                    fmt.warning("Caffeinate must be enabled first.")
+                    click.prompt("Press Enter", default="")
+                else:
+                    cfg["caffeinate"]["lid_closed"] = not lid
+                    if cfg["caffeinate"]["lid_closed"]:
+                        cfg["caffeinate"]["mode"] = "system"
+
+        elif choice == "⏰ TRIGGERS — when keepalive fires":
+            sub = questionary.select(
+                "Edit:",
+                choices=[
+                    "Schedule",
+                    f"WiFi ({'on' if wifi_enabled else 'off'})",
+                    f"App ({'on' if app_enabled else 'off'})",
+                    "Back",
+                ],
+            ).ask()
+            if sub == "Schedule":
+                cfg["triggers"]["schedule"]["enabled"] = not sch_enabled
+                if cfg["triggers"]["schedule"]["enabled"]:
+                    sch_edit = questionary.select(
+                        "Edit schedule?",
+                        choices=["Edit from/to", "Back"],
+                    ).ask()
+                    if sch_edit == "Edit from/to":
+                        cfg["triggers"]["schedule"]["from"] = _edit_str("From (HH:MM)", sch_from)
+                        cfg["triggers"]["schedule"]["to"] = _edit_str("To (HH:MM)", sch_to)
+            elif sub and "WiFi" in sub:
+                cfg["triggers"]["wifi"]["enabled"] = not wifi_enabled
+                if cfg["triggers"]["wifi"]["enabled"]:
+                    _wifi_submenu(cfg)
+            elif sub and "App" in sub:
+                cfg["triggers"]["app"]["enabled"] = not app_enabled
+                if cfg["triggers"]["app"]["enabled"]:
+                    _app_submenu(cfg)
+
+
+def _wifi_submenu(cfg: dict[str, Any]) -> None:
+    """Add/remove SSIDs with autocomplete from available networks."""
+    import questionary
+
+    from keepalive.triggers.wifi import list_available_ssids
+
+    while True:
+        ssids = cfg["triggers"]["wifi"]["ssids"]
+        networks = list_available_ssids()
+        choices = [f"[×] {s}" for s in ssids]
+        choices += ["[+ Add network…]", "Back"]
+
+        sel = questionary.select("WiFi SSIDs:", choices=choices).ask()
+        if sel == "Back" or sel is None:
+            return
+        if sel == "[+ Add network…]":
+            hint = networks if networks else []
+            new_ssid = _autocomplete("SSID (type to search or enter new):", hint)
+            if new_ssid and new_ssid not in ssids:
+                ssids.append(new_ssid)
+                cfg["triggers"]["wifi"]["ssids"] = ssids
+        elif sel and sel.startswith("[×] "):
+            name = sel[4:]
+            ssids.remove(name)
+            cfg["triggers"]["wifi"]["ssids"] = ssids
+
+
+def _app_submenu(cfg: dict[str, Any]) -> None:
+    """Add/remove apps with autocomplete from installed bundles."""
+    import questionary
+
+    from keepalive.triggers.app import search_apps
+
+    while True:
+        apps = cfg["triggers"]["app"]["apps"]
+        choices = [f"[×] {a}" for a in apps]
+        choices += ["[+ Add app…]", "Back"]
+
+        sel = questionary.select("App bundle IDs:", choices=choices).ask()
+        if sel == "Back" or sel is None:
+            return
+        if sel == "[+ Add app…]":
+            matches = search_apps("")
+            display = [
+                f"{m['name']} ({m['bundle_id']})" if m["bundle_id"] else m["name"]
+                for m in matches[:50]
+            ]
+            new_sel = _autocomplete("App (type to search):", display)
+            if new_sel:
+                # extract bundle_id from "Name (com.example.app)"
+                bid = new_sel.split("(")[-1].rstrip(")") if "(" in new_sel else new_sel
+                if bid and bid not in apps:
+                    apps.append(bid)
+                    cfg["triggers"]["app"]["apps"] = apps
+        elif sel and sel.startswith("[×] "):
+            name = sel[4:]
+            apps.remove(name)
+            cfg["triggers"]["app"]["apps"] = apps
+
+
+# ── config commands ────────────────────────────────────────────────────────
+
+
+def cmd_config_export(*, fmt: Formatter | None = None) -> None:
+    """Export current config to stdout."""
+    if fmt is None:
+        fmt = TextFormatter()
+    cfg = load_settings()
+    if isinstance(fmt, JsonFormatter):
+        fmt.result(cfg)
+    else:
+        import json
+
+        click.echo(json.dumps(cfg, indent=2))
+
+
+def cmd_config_replace(  # noqa: C901 (validation + I/O dispatch)
+    *,
+    file_path: str | None = None,
+    from_stdin: bool = False,
+    fmt: Formatter | None = None,
+) -> None:
+    """Validate and write a full config replacement."""
+    if fmt is None:
+        fmt = TextFormatter()
+
+    if file_path and from_stdin:
+        fmt.error("Use --file OR --stdin, not both")
+        sys.exit(1)
+    if not file_path and not from_stdin:
+        fmt.error("Specify --file or --stdin")
+        sys.exit(1)
+
+    try:
+        if file_path:
+            raw = json.loads(Path(file_path).read_text())
+        else:
+            raw = json.loads(sys.stdin.read())
+    except json.JSONDecodeError as exc:
+        fmt.error(f"Invalid JSON: {exc}")
+        sys.exit(1)
+
+    if not isinstance(raw, dict):
+        fmt.error("Config must be a JSON object")
+        sys.exit(1)
+
+    errors = write_config(raw)
+    if errors:
+        if isinstance(fmt, JsonFormatter):
+            fmt.result({"valid": False, "errors": errors})
+        else:
+            for e in errors:
+                fmt.error(e)
+        sys.exit(1)
+
+    if isinstance(fmt, JsonFormatter):
+        fmt.result({"valid": True})
+    else:
+        fmt.success("Configuration replaced successfully")
+
+
 # ── Click CLI layer ─────────────────────────────────────────────────────────
 
 
@@ -537,3 +939,38 @@ def demo(ctx: click.Context) -> None:
         sched=ctx.obj["sched"],
         fmt=ctx.obj["fmt"],
     )
+
+
+# ── config sub-group ───────────────────────────────────────────────────────
+
+
+@cli.group()
+def config() -> None:
+    """Manage keepalive configuration."""
+
+
+@config.command("export")
+@click.pass_context
+def config_export(ctx: click.Context) -> None:
+    """Print the full configuration as JSON."""
+    cmd_config_export(fmt=ctx.obj["fmt"])
+
+
+@config.command("replace")
+@click.option("--file", "file_path", type=click.Path(exists=True), help="JSON file to read")
+@click.option("--stdin", "from_stdin", is_flag=True, help="Read JSON from stdin")
+@click.pass_context
+def config_replace(
+    ctx: click.Context,
+    file_path: str | None,
+    from_stdin: bool,
+) -> None:
+    """Replace the full configuration from a JSON file or stdin."""
+    cmd_config_replace(file_path=file_path, from_stdin=from_stdin, fmt=ctx.obj["fmt"])
+
+
+@config.command("setup")
+@click.pass_context
+def config_setup(ctx: click.Context) -> None:
+    """Interactive configuration dashboard."""
+    cmd_config_setup(fmt=ctx.obj["fmt"])
