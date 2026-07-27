@@ -32,6 +32,15 @@ class InputDriver(Protocol):
         """
         ...
 
+    def request_accessibility(self) -> None:
+        """Trigger OS permission dialog (macOS only).
+
+        Only the daemon (launchd → keepalive-cli) calls this — once at
+        startup.  CLI commands use check_permissions() instead to avoid
+        showing a dialog for the terminal app.
+        """
+        ...
+
 
 class SchedulerDriver(Protocol):
     """Install / uninstall / check the OS-level scheduler agent."""

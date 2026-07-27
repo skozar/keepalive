@@ -1,6 +1,6 @@
 """Unit tests for CLI dispatch — CaptureFormatter, FakeInput, spy_daemon."""
 
-from keepalive.cli import cmd_run, cmd_setup, cmd_start, cmd_stop
+from keepalive.cli import cmd_setup, cmd_start, cmd_stop
 from keepalive.formatters import CaptureFormatter
 from tests.fake_drivers import FakeInput, FakeScheduler
 
@@ -19,45 +19,8 @@ def _error_msgs(fmt: CaptureFormatter) -> list[str]:
     return [m[1] for m in fmt.calls if m[0] == "error"]
 
 
-# ── run ──────────────────────────────────────────────────────────────────────
-
-
-class TestCmdRunDispatch:
-    def test_passes_all_args_to_daemon(self, spy_daemon):
-        fake = FakeInput(idle=0)
-        fmt = _fmt()
-        cmd_run(
-            "09:00-18:00",
-            120,
-            "key",
-            "f15",
-            input_drv=fake,
-            daemon_fn=spy_daemon,
-            fmt=fmt,
-        )
-        r = spy_daemon.received
-        assert r["idle"] == 120
-        assert r["method"] == "key"
-        assert r["key"] == "f15"
-        assert r["conditions"] is not None  # built from config
-
-    def test_refuses_when_permissions_missing(self):
-        fake = FakeInput(idle=0, permissions={"accessibility": False})
-        fmt = _fmt()
-
-        try:
-            cmd_run(
-                "08:00-17:00",
-                300,
-                "mouse",
-                "f13",
-                input_drv=fake,
-                daemon_fn=lambda *a, **kw: None,
-                fmt=fmt,
-            )
-        except SystemExit as e:
-            assert e.code == 1
-        assert any("Missing permissions" in m for m in _error_msgs(fmt))
+def _warning_msgs(fmt: CaptureFormatter) -> list[str]:
+    return [m[1] for m in fmt.calls if m[0] == "warning"]
 
 
 # ── start ────────────────────────────────────────────────────────────────────
@@ -84,15 +47,15 @@ class TestCmdStartDispatch:
             assert e.code == 1
         assert any("already" in m.lower() for m in _error_msgs(fmt))
 
-    def test_refuses_when_permissions_missing(self):
+    def test_warns_when_permissions_missing(self):
         sched = FakeScheduler()
         fake = FakeInput(permissions={"accessibility": False})
         fmt = _fmt()
-        try:
-            cmd_start("09:00-18:00", 120, "mouse", "f13", sched=sched, input_drv=fake, fmt=fmt)
-        except SystemExit as e:
-            assert e.code == 1
-        assert any("Missing permissions" in m for m in _error_msgs(fmt))
+        cmd_start("09:00-18:00", 120, "mouse", "f13", sched=sched, input_drv=fake, fmt=fmt)
+        # Should install anyway
+        assert sched.last_install is not None
+        # But warn about accessibility
+        assert any("Accessibility not granted" in m for m in _warning_msgs(fmt))
 
 
 # ── stop ─────────────────────────────────────────────────────────────────────

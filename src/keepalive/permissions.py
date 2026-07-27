@@ -10,11 +10,9 @@ import sys
 _PERMISSION_HELP: dict[str, dict[str, str]] = {
     "darwin": {
         "accessibility": (
-            "System Settings → Privacy & Security → Accessibility\n"
-            "→ Add your terminal app (Terminal.app / iTerm2 / VS Code / warp)\n"
-            "→ Or run: open "
-            '"x-apple.systempreferences:com.apple.preference.security'
-            '?Privacy_Accessibility"'
+            "Add /opt/homebrew/bin/keepalive-cli to Accessibility:\n"
+            "  System Settings → Privacy & Security → Accessibility → +\n"
+            "For testing from terminal: temporarily add your terminal app instead."
         ),
     },
     "linux": {

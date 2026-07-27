@@ -72,6 +72,38 @@ class MacOSInput:
             ok = False
         return {"accessibility": ok}
 
+    def request_accessibility(self) -> None:
+        """Trigger macOS permission dialog once. Daemon calls this at startup.
+
+        Only the responsible process (launchd → keepalive-cli) triggers
+        the correct dialog.  CLI commands use check_permissions() instead
+        to avoid showing a dialog for the terminal app.
+        """
+        import ctypes
+        import platform
+
+        import objc  # type: ignore[import-untyped]
+
+        if platform.system() != "Darwin":
+            return
+
+        cfstr = objc.lookUpClass("NSString").stringWithString_
+        key = cfstr("AXTrustedCheckOptionPrompt")
+        val = objc.lookUpClass("NSNumber").numberWithBool_(True)
+        opts = objc.lookUpClass("NSDictionary").dictionaryWithObject_forKey_(val, key)
+
+        hi_path = (
+            "/System/Library/Frameworks/ApplicationServices.framework"
+            "/Versions/A/Frameworks/HIServices.framework/Versions/A/HIServices"
+        )
+        hi = ctypes.CDLL(hi_path)
+        hi.AXIsProcessTrustedWithOptions.restype = ctypes.c_bool
+        hi.AXIsProcessTrustedWithOptions.argtypes = [ctypes.c_void_p]
+
+        granted = hi.AXIsProcessTrustedWithOptions(objc.pyobjc_id(opts))
+        if not granted:
+            log.warning("Accessibility not granted — agent will retry silently")
+
 
 # ── SchedulerDriver ─────────────────────────────────────────────────────────
 

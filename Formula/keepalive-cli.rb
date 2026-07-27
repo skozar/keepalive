@@ -6,8 +6,18 @@ class KeepaliveCli < Formula
   sha256 "302a46e47ba57f8ef7d652c2113b74488d1e250149e29b0eaec56963b4b7d44d"
 
   def install
-    libexec.install "keepalive-cli.app"
-    bin.install_symlink libexec/"keepalive-cli.app/Contents/MacOS/keepalive-cli" => "keepalive-cli"
+    # Tarball contains Contents/ from a PyInstaller --windowed .app bundle.
+    # Homebrew unpacks and CDs into Contents/. Reconstruct the .app in libexec
+    # so macOS identifies the process as "keepalive-cli" in Accessibility.
+    app = libexec/"keepalive-cli.app"
+    (app/"Contents").mkpath
+    FileUtils.mv(Dir["*"], app/"Contents")
+
+    # Ad-hoc code-sign the .app bundle
+    system "codesign", "--force", "--deep", "--sign", "-", app.to_s
+
+    # CLI symlink through .app
+    bin.install_symlink app/"Contents/MacOS/keepalive-cli" => "keepalive-cli"
   end
 
   def caveats

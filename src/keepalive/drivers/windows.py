@@ -11,6 +11,9 @@ class WindowsInput:
     def check_permissions(self) -> dict[str, bool]:
         raise NotImplementedError("Windows support is not yet implemented")
 
+    def request_accessibility(self) -> None:
+        raise NotImplementedError("Windows support is not yet implemented")
+
 
 class TaskScheduler:
     def __init__(self) -> None:

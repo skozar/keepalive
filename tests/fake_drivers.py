@@ -23,6 +23,9 @@ class FakeInput:
     def check_permissions(self) -> dict[str, bool]:
         return dict(self._permissions)
 
+    def request_accessibility(self) -> None:
+        pass
+
 
 class FakeScheduler:
     """In-memory scheduler — no launchd/systemd/task-scheduler."""

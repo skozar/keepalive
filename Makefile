@@ -24,8 +24,10 @@ lint:
 	$(PDM) run codespell
 
 build:
-	rm -rf dist/$(APP_NAME)
-	$(PDM) run pyinstaller --onedir --name $(APP_NAME) src/keepalive/__main__.py
+	rm -rf dist/$(APP_NAME) dist/$(APP_NAME).app
+	$(PDM) run pyinstaller --windowed --name $(APP_NAME) \
+		--osx-bundle-identifier com.keepalive.cli \
+		src/keepalive/__main__.py
 
 clean:
 	rm -rf build dist *.spec __pycache__ src/**/__pycache__ tests/**/__pycache__
@@ -38,15 +40,25 @@ release:
 	@$(MAKE) test
 	@echo "🔨 Step 1.5: Linting..."
 	@$(MAKE) lint
-	@echo "🔨 Step 2/6: Building CLI binary..."
+	@echo "🏷️  Step 2/6: Bumping version..."
+	@sed -i '' 's/__version__ = ".*"/__version__ = "$(VERSION)"/' src/keepalive/__init__.py
+	@echo "🔨 Step 3/6: Building CLI binary..."
 	@$(MAKE) build
 	@echo "📦 Packaging..."
-	@cd dist && tar --no-xattrs -czf $(APP_NAME)-$(VERSION).tar.gz "$(APP_NAME)"
-	@echo "🏷️  Step 3/6: Tagging..."
-	@PREV_TAG=$$(git tag --sort=-version:refname | grep '^v[0-9]' | head -1); \
+	@cd dist && tar --no-xattrs -czf $(APP_NAME)-$(VERSION).tar.gz -C "$(APP_NAME).app" Contents
+	@echo "📝 Step 4/6: Updating formulas..."
+	@CLI_SHA=$$(shasum -a 256 dist/$(APP_NAME)-$(VERSION).tar.gz | cut -d' ' -f1); \
+	echo "CLI sha256: $$CLI_SHA"; \
+	sed -i '' "s/version \".*\"/version \"$(VERSION)\"/" $(FORMULA); \
+	sed -i '' "s/sha256 \".*\"/sha256 \"$$CLI_SHA\"/" $(FORMULA); \
+	git add $(FORMULA) src/keepalive/__init__.py; \
+	git commit -m "v$(VERSION): update formulas" || true; \
+	git push origin main;
+	@echo "📋 Step 5/6: Creating GitHub Release..."
+	@NOTES_FILE=$$(mktemp); \
+	PREV_TAG=$$(git tag --sort=-version:refname | grep '^v[0-9]' | head -1); \
 	echo "Previous tag: $$PREV_TAG"; \
 	git log --oneline $$PREV_TAG..HEAD > /tmp/keepalive_changes; \
-	NOTES_FILE=$$(mktemp); \
 	echo "## Changes" > $$NOTES_FILE; \
 	echo '```' >> $$NOTES_FILE; \
 	cat /tmp/keepalive_changes >> $$NOTES_FILE; \
@@ -57,18 +69,8 @@ release:
 	echo "### Install / Upgrade" >> $$NOTES_FILE; \
 	echo '```bash' >> $$NOTES_FILE; \
 	echo "brew update && brew upgrade keepalive-cli" >> $$NOTES_FILE; \
-	echo '```' >> $$NOTES_FILE
-	@echo "📝 Step 4/6: Updating formulas..."
-	@CLI_SHA=$$(shasum -a 256 dist/$(APP_NAME)-$(VERSION).tar.gz | cut -d' ' -f1); \
-	echo "CLI sha256: $$CLI_SHA"; \
-	sed -i '' "s/version \".*\"/version \"$(VERSION)\"/" $(FORMULA); \
-	sed -i '' "s/sha256 \".*\"/sha256 \"$$CLI_SHA\"/" $(FORMULA); \
-	sed -i '' 's/__version__ = ".*"/__version__ = "$(VERSION)"/' src/keepalive/__init__.py; \
-	git add $(FORMULA) src/keepalive/__init__.py; \
-	git commit -m "v$(VERSION): update formulas" || true; \
-	git push origin main;
-	@echo "📋 Step 5/6: Creating GitHub Release..."
-	@git tag -a v$(VERSION) -m "v$(VERSION)" || true; \
+	echo '```' >> $$NOTES_FILE; \
+	git tag -a v$(VERSION) -m "v$(VERSION)" || true; \
 	git push origin v$(VERSION); \
 	gh release create v$(VERSION) dist/$(APP_NAME)-$(VERSION).tar.gz \
 		--title "v$(VERSION)" --notes-file $$NOTES_FILE || true; \

@@ -49,6 +49,9 @@ class FakeDriver:
     def check_permissions(self) -> dict[str, bool]:
         return {"accessibility": True}
 
+    def request_accessibility(self) -> None:
+        pass
+
 
 @pytest.fixture
 def fake_drv() -> FakeDriver:
@@ -64,7 +67,7 @@ class TestDaemonLoop:
             "mouse",
             "f13",
             fake,  # type: ignore[arg-type]
-            schedule="08:00-17:00",
+            schedule="00:00-23:59",
             max_iterations=1,
         )
         assert fake.jiggle_calls == 1
@@ -77,7 +80,7 @@ class TestDaemonLoop:
             "mouse",
             "f13",
             fake,  # type: ignore[arg-type]
-            schedule="08:00-17:00",
+            schedule="00:00-23:59",
             max_iterations=1,
         )
         assert fake.jiggle_calls == 0
@@ -90,7 +93,7 @@ class TestDaemonLoop:
             "key",
             "f14",
             fake,  # type: ignore[arg-type]
-            schedule="08:00-17:00",
+            schedule="00:00-23:59",
             max_iterations=1,
         )
         assert "f14" in fake.key_presses
@@ -104,7 +107,7 @@ class TestDaemonLoop:
             "both",
             "f15",
             fake,  # type: ignore[arg-type]
-            schedule="08:00-17:00",
+            schedule="00:00-23:59",
             max_iterations=1,
         )
         assert fake.jiggle_calls == 1
@@ -131,7 +134,7 @@ class TestDaemonLoop:
             "mouse",
             "f13",
             fake,  # type: ignore[arg-type]
-            schedule="08:00-17:00",
+            schedule="00:00-23:59",
             max_iterations=3,
         )
         assert fake.jiggle_calls == 3

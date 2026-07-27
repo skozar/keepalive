@@ -87,6 +87,9 @@ def daemon(  # noqa: C901 (loop + condition dispatch + caffeinate)
         caffeinate_mode or "off",
     )
 
+    # --- accessibility (macOS) ---
+    input_drv.request_accessibility()
+
     iteration = 0
     try:
         while True:
@@ -95,6 +98,11 @@ def daemon(  # noqa: C901 (loop + condition dispatch + caffeinate)
             iteration += 1
 
             try:
+                # Wait for accessibility if not yet granted
+                if not input_drv.check_permissions().get("accessibility"):
+                    time.sleep(60)
+                    continue
+
                 if checker():
                     idle_secs = input_drv.idle_seconds()
                     if idle_secs >= idle_threshold:

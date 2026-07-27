@@ -1,4 +1,4 @@
-"""CLI: start, stop, status, run, setup, demo."""
+"""CLI: start, stop, status, config, setup, diagnostics."""
 
 import json
 import subprocess
@@ -26,7 +26,6 @@ from keepalive.config import (
     save_settings,
     write_config,
 )
-from keepalive.daemon import daemon
 from keepalive.drivers.factory import create_input_driver, create_scheduler
 from keepalive.formatters import (
     Formatter,
@@ -38,17 +37,6 @@ from keepalive.permissions import help_for_platform
 from keepalive.protocols import InputDriver, SchedulerDriver
 
 # ── helpers ──────────────────────────────────────────────────────────────────
-
-
-def _check_perms_or_die(input_drv: InputDriver, fmt: Formatter) -> dict[str, bool]:
-    perms = input_drv.check_permissions()
-    missing = [k for k, v in perms.items() if not v]
-    if missing:
-        names = ", ".join(missing)
-        fmt.error(f"Missing permissions: {names}")
-        fmt.info("  Run: keepalive-cli setup")
-        sys.exit(1)
-    return perms
 
 
 # ── commands (platform-independent, formatter + DI-driven) ───────────────────
@@ -164,7 +152,12 @@ def cmd_start(
         fmt.result({"status": "already_installed"})
         sys.exit(1)
 
-    _check_perms_or_die(input_drv, fmt)
+    perms = input_drv.check_permissions()
+    if not perms.get("accessibility"):
+        fmt.warning("Accessibility not granted for this terminal session.")
+        fmt.info("  → After install: System Settings → Privacy & Security → Accessibility")
+        fmt.info("  → + → /opt/homebrew/bin/keepalive-cli")
+        fmt.info("  → The agent will start working once permission is granted.")
 
     # --- idle vs system sleep warning ---
     sys_sleep = get_system_sleep()
@@ -222,10 +215,13 @@ def cmd_stop(
 def cmd_status(
     *,
     sched: SchedulerDriver | None = None,
+    input_drv: InputDriver | None = None,
     fmt: Formatter | None = None,
 ) -> None:
     if sched is None:
         sched = create_scheduler()
+    if input_drv is None:
+        input_drv = create_input_driver()
     if fmt is None:
         fmt = TextFormatter()
 
@@ -252,55 +248,20 @@ def cmd_status(
     fmt.info(f"   idle     : {cfg.get('idle', DEFAULT_IDLE)}s")
     fmt.info(f"   method   : {method}{extra}")
 
-
-def cmd_run(
-    schedule: str,
-    idle: int,
-    method: str,
-    key: str,
-    *,
-    input_drv: InputDriver | None = None,
-    daemon_fn: object = daemon,
-    fmt: Formatter | None = None,
-) -> None:
-    if input_drv is None:
-        input_drv = create_input_driver()
-    if fmt is None:
-        fmt = TextFormatter()
-
-    _check_perms_or_die(input_drv, fmt)
-
-    # --- build conditions from config ---
-    cfg = load_settings()
-    conditions = _build_conditions(cfg)
-
-    # --- caffeinate ---
-    caf = cfg.get("caffeinate", {})
-    caf_mode: str | None = None
-    if caf.get("enabled"):
-        caf_mode = str(caf.get("mode", "display"))
-
-    # --- idle vs system sleep warning ---
-    sys_sleep = get_system_sleep()
-    if sys_sleep and idle > sys_sleep:
-        fmt.warning(
-            f"idle ({idle}s) > system sleep ({sys_sleep}s / {sys_sleep // 60}min) — "
-            "agent may miss before sleep. Enable Caffeinate: "
-            "keepalive-cli config setup"
-        )
-
-    extra = f", key={key}" if method in ("key", "both") else ""
-    fmt.info(
-        f"🟢 Foreground mode — schedule {schedule}, idle {idle}s, "
-        f"method={method}{extra} (Ctrl+C to stop)"
-    )
-    daemon_fn(idle, method, key, input_drv, conditions=conditions, caffeinate_mode=caf_mode)  # type: ignore[operator]
+    # Always show accessibility status
+    perms = input_drv.check_permissions()
+    if perms.get("accessibility"):
+        fmt.success("   accessibility : ✓ granted")
+    else:
+        fmt.warning("   accessibility : ✗ NOT granted")
+        if running:
+            fmt.info("     → Add /opt/homebrew/bin/keepalive-cli to Accessibility")
 
 
-# ── demo ─────────────────────────────────────────────────────────────────────
+# ── diagnostics ─────────────────────────────────────────────────────────────────────
 
 
-def _demo_check_perms(input_drv: InputDriver, fmt: Formatter) -> None:
+def _diag_check_perms(input_drv: InputDriver, fmt: Formatter) -> None:
     perms = input_drv.check_permissions()
     if perms.get("accessibility"):
         fmt.success("Accessibility — granted")
@@ -311,7 +272,7 @@ def _demo_check_perms(input_drv: InputDriver, fmt: Formatter) -> None:
             fmt.info(f"  {line}")
 
 
-def _demo_idle_live(input_drv: InputDriver) -> None:
+def _diag_idle_live(input_drv: InputDriver) -> None:
     """Live idle counter — updates every second, Enter to stop."""
     click.echo("Watching idle time... (move mouse to reset, Enter to stop)")
     click.echo()
@@ -338,7 +299,7 @@ def _demo_idle_live(input_drv: InputDriver) -> None:
     click.echo("\n")
 
 
-def _demo_mouse_visible() -> None:
+def _diag_mouse_visible() -> None:
     """Draw a visible 50×50px square with the cursor."""
     import Quartz
 
@@ -362,7 +323,7 @@ def _demo_mouse_visible() -> None:
     click.secho("Done — cursor should have drawn a square", fg="green")
 
 
-def _demo_key_visible() -> None:
+def _diag_key_visible() -> None:
     """Type a visible ● character in the active field."""
     click.secho("Will type '●' in the active field in:", fg="yellow")
     for i in range(3, 0, -1):
@@ -376,7 +337,7 @@ def _demo_key_visible() -> None:
     click.secho("Done — you should see '●' in the active field", fg="green")
 
 
-def _demo_cycle(input_drv: InputDriver, fmt: Formatter) -> None:
+def _diag_cycle(input_drv: InputDriver, fmt: Formatter) -> None:
     """Full cycle: idle → jiggle → verify reset."""
     fmt.info("Don't touch mouse/keyboard for 3 seconds...")
     time.sleep(3)
@@ -392,14 +353,14 @@ def _demo_cycle(input_drv: InputDriver, fmt: Formatter) -> None:
         fmt.error("Idle did not reset. Check Accessibility permission.")
 
 
-def _demo_scheduler(sched: SchedulerDriver, fmt: Formatter) -> None:
+def _diag_scheduler(sched: SchedulerDriver, fmt: Formatter) -> None:
     if sched.is_running():
         fmt.success("Launchd agent: loaded")
     else:
         fmt.info("Launchd agent: not loaded")
 
 
-def _demo_log(fmt: Formatter) -> None:
+def _diag_log(fmt: Formatter) -> None:
     fmt.info(f"Log file: {LOG_FILE}")
     try:
         lines = LOG_FILE.read_text().splitlines()[-10:]
@@ -411,10 +372,10 @@ def _demo_log(fmt: Formatter) -> None:
         fmt.info("  (unreadable)")
 
 
-# ── new demo handlers (v0.10.1) ────────────────────────────────────────────
+# ── diagnostics handlers (v0.11) ────────────────────────────────────────────
 
 
-def _demo_config(fmt: Formatter) -> None:
+def _diag_config(fmt: Formatter) -> None:
     """Show current config in the new nested format."""
     cfg = load_settings()
     act = cfg["activity"]
@@ -457,7 +418,7 @@ def _demo_config(fmt: Formatter) -> None:
         )
 
 
-def _demo_triggers_test(fmt: Formatter) -> None:
+def _diag_triggers_test(fmt: Formatter) -> None:
     """Test which triggers are active right now."""
     cfg = load_settings()
     sch = cfg["triggers"]["schedule"]
@@ -521,7 +482,7 @@ def _demo_triggers_test(fmt: Formatter) -> None:
         fmt.error("→ Agent would fire: NO (no triggers active)")
 
 
-def _demo_caffeinate_info(fmt: Formatter) -> None:
+def _diag_caffeinate_info(fmt: Formatter) -> None:
     """Show caffeinate status and system sleep information."""
     cfg = load_settings()
     caf = cfg["caffeinate"]
@@ -556,10 +517,10 @@ def _demo_caffeinate_info(fmt: Formatter) -> None:
             click.secho("   Enable Caffeinate display mode to prevent this.", fg="yellow")
 
 
-# ── demo menu (questionary) ─────────────────────────────────────────────────
+# ── diagnostics menu (questionary) ─────────────────────────────────────────────────
 
 
-_DEMO_CHOICES = [
+_DIAG_CHOICES = [
     "Check Accessibility permission",
     "Show idle time — live counter",
     "Test mouse movement — visible square",
@@ -573,24 +534,24 @@ _DEMO_CHOICES = [
 ]
 
 
-def _build_demo_handlers(
+def _build_diag_handlers(
     input_drv: InputDriver, sched: SchedulerDriver, fmt: Formatter
 ) -> dict[str, Callable[[], None]]:
     return {
-        "Check Accessibility permission": lambda: _demo_check_perms(input_drv, fmt),
-        "Show idle time — live counter": lambda: _demo_idle_live(input_drv),
-        "Test mouse movement — visible square": _demo_mouse_visible,
-        "Test key press — visible character": _demo_key_visible,
-        "Test full cycle — idle → jiggle → reset": lambda: _demo_cycle(input_drv, fmt),
-        "Show current config — activity/caffeinate/triggers": lambda: _demo_config(fmt),
-        "Test triggers — which are active right now?": lambda: _demo_triggers_test(fmt),
-        "Caffeinate + system sleep info": lambda: _demo_caffeinate_info(fmt),
-        "Scheduler status — launchd": lambda: _demo_scheduler(sched, fmt),
-        "Show log — location + tail": lambda: _demo_log(fmt),
+        "Check Accessibility permission": lambda: _diag_check_perms(input_drv, fmt),
+        "Show idle time — live counter": lambda: _diag_idle_live(input_drv),
+        "Test mouse movement — visible square": _diag_mouse_visible,
+        "Test key press — visible character": _diag_key_visible,
+        "Test full cycle — idle → jiggle → reset": lambda: _diag_cycle(input_drv, fmt),
+        "Show current config — activity/caffeinate/triggers": lambda: _diag_config(fmt),
+        "Test triggers — which are active right now?": lambda: _diag_triggers_test(fmt),
+        "Caffeinate + system sleep info": lambda: _diag_caffeinate_info(fmt),
+        "Scheduler status — launchd": lambda: _diag_scheduler(sched, fmt),
+        "Show log — location + tail": lambda: _diag_log(fmt),
     }
 
 
-def cmd_demo(
+def cmd_diagnostics(
     *,
     input_drv: InputDriver | None = None,
     sched: SchedulerDriver | None = None,
@@ -606,22 +567,22 @@ def cmd_demo(
         fmt = TextFormatter()
 
     if isinstance(fmt, JsonFormatter):
-        fmt.result({"available": _DEMO_CHOICES})
+        fmt.result({"available": _DIAG_CHOICES})
         return
 
-    handlers = _build_demo_handlers(input_drv, sched, fmt)
+    handlers = _build_diag_handlers(input_drv, sched, fmt)
 
     while True:
         click.clear()
         action = questionary.select(
-            "🧪 keepalive Demo",
+            "🧪 keepalive Diagnostics",
             choices=[
                 questionary.Separator("── Diagnostics ──"),
-                *_DEMO_CHOICES[:5],
+                *_DIAG_CHOICES[:5],
                 questionary.Separator("── Configuration ──"),
-                *_DEMO_CHOICES[5:8],
+                *_DIAG_CHOICES[5:8],
                 questionary.Separator("── System ──"),
-                *_DEMO_CHOICES[8:10],
+                *_DIAG_CHOICES[8:10],
                 questionary.Separator("─"),
                 "Exit",
             ],
@@ -960,8 +921,17 @@ def cmd_config_replace(  # noqa: C901 (validation + I/O dispatch)
 # ── Click CLI layer ─────────────────────────────────────────────────────────
 
 
+class _UnsortedGroup(click.Group):
+    """Group that lists commands in definition order, not alphabetical."""
+
+    def list_commands(self, ctx: click.Context) -> list[str]:
+        return list(self.commands)
+
+
 @click.group(
-    help=f"Keep macOS awake during work hours — stay green in messengers.\n\nVersion: {__version__}"
+    cls=_UnsortedGroup,
+    help="Keep macOS awake during work hours — stay green in messengers.\n\n"
+    f"Version: {__version__}",
 )
 @click.option("--json", "json_mode", is_flag=True, help="Output in JSON format")
 @click.pass_context
@@ -1019,59 +989,7 @@ def stop(ctx: click.Context) -> None:
 @click.pass_context
 def status(ctx: click.Context) -> None:
     """Show agent status."""
-    cmd_status(sched=ctx.obj["sched"], fmt=ctx.obj["fmt"])
-
-
-@cli.command()
-@click.option("--schedule", default=DEFAULT_SCHEDULE, help="Active window")
-@click.option("--idle", type=int, default=DEFAULT_IDLE, help="Idle threshold in seconds")
-@click.option(
-    "--method",
-    type=click.Choice(["mouse", "key", "both"]),
-    default=DEFAULT_METHOD,
-    help="Activity method",
-)
-@click.option(
-    "--key",
-    type=click.Choice(list(KEY_CODES)),
-    default=DEFAULT_KEY,
-    help="Key to press",
-)
-@click.pass_context
-def run(
-    ctx: click.Context,
-    schedule: str,
-    idle: int,
-    method: str,
-    key: str,
-) -> None:
-    """Run in foreground (Ctrl+C to stop)."""
-    cmd_run(
-        schedule,
-        idle,
-        method,
-        key,
-        input_drv=ctx.obj["input_drv"],
-        fmt=ctx.obj["fmt"],
-    )
-
-
-@cli.command()
-@click.pass_context
-def setup(ctx: click.Context) -> None:
-    """Interactive permission check and setup."""
-    cmd_setup(input_drv=ctx.obj["input_drv"], fmt=ctx.obj["fmt"])
-
-
-@cli.command()
-@click.pass_context
-def demo(ctx: click.Context) -> None:
-    """Interactive test — verify drivers and permissions manually."""
-    cmd_demo(
-        input_drv=ctx.obj["input_drv"],
-        sched=ctx.obj["sched"],
-        fmt=ctx.obj["fmt"],
-    )
+    cmd_status(sched=ctx.obj["sched"], input_drv=ctx.obj["input_drv"], fmt=ctx.obj["fmt"])
 
 
 # ── config sub-group ───────────────────────────────────────────────────────
@@ -1107,3 +1025,21 @@ def config_replace(
 def config_setup(ctx: click.Context) -> None:
     """Interactive configuration dashboard."""
     cmd_config_setup(fmt=ctx.obj["fmt"])
+
+
+@cli.command()
+@click.pass_context
+def setup(ctx: click.Context) -> None:
+    """Interactive permission check and setup."""
+    cmd_setup(input_drv=ctx.obj["input_drv"], fmt=ctx.obj["fmt"])
+
+
+@cli.command()
+@click.pass_context
+def diagnostics(ctx: click.Context) -> None:
+    """Diagnostics — for advanced users only."""
+    cmd_diagnostics(
+        input_drv=ctx.obj["input_drv"],
+        sched=ctx.obj["sched"],
+        fmt=ctx.obj["fmt"],
+    )

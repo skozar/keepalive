@@ -8,6 +8,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from keepalive.migrations import migrate as _migrate_config
+
 APP_NAME = "keepalive"
 LOG_DIR = Path.home() / "Library" / "Logs" / APP_NAME
 LOG_FILE = LOG_DIR / "keepalive.log"
@@ -34,6 +36,7 @@ KEY_CODES: dict[str, int] = {
 REQUIRED_FIELDS = {"activity", "caffeinate", "triggers"}
 
 DEFAULTS: dict[str, Any] = {
+    "schema_version": 1,
     "activity": {
         "idle": DEFAULT_IDLE,
         "method": DEFAULT_METHOD,
@@ -192,27 +195,8 @@ def load_settings() -> dict[str, Any]:
     if not isinstance(raw, dict):
         return DEFAULTS
 
-    # --- detect v0.7/v0.8 flat format and migrate ---
-    if "activity" not in raw and "triggers" not in raw:
-        # v0.7 format: schedule_from, schedule_to, idle, method, key
-        idle = raw.get("idle", DEFAULT_IDLE)
-        method = raw.get("method", DEFAULT_METHOD)
-        key = raw.get("key", DEFAULT_KEY)
-        sched_from = raw.get("schedule_from", DEFAULT_SCHEDULE_FROM)
-        sched_to = raw.get("schedule_to", DEFAULT_SCHEDULE_TO)
-        raw = {
-            "activity": {"idle": idle, "method": method, "key": key},
-            "caffeinate": DEFAULTS["caffeinate"],
-            "triggers": {
-                "schedule": {
-                    "enabled": True,
-                    "from": sched_from,
-                    "to": sched_to,
-                },
-                "wifi": DEFAULTS["triggers"]["wifi"],
-                "app": DEFAULTS["triggers"]["app"],
-            },
-        }
+    # --- migrate if needed ---
+    raw = _migrate_config(raw)
 
     # --- deep-merge with defaults for any missing keys ---
     merged = _deep_merge(DEFAULTS, raw)

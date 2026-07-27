@@ -11,6 +11,9 @@ class LinuxInput:
     def check_permissions(self) -> dict[str, bool]:
         raise NotImplementedError("Linux support is not yet implemented")
 
+    def request_accessibility(self) -> None:
+        raise NotImplementedError("Linux support is not yet implemented")
+
 
 class SystemdScheduler:
     def __init__(self) -> None:
