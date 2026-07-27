@@ -312,7 +312,7 @@ def _demo_check_perms(input_drv: InputDriver, fmt: Formatter) -> None:
 
 def _demo_idle_live(input_drv: InputDriver) -> None:
     """Live idle counter — updates every second, Enter to stop."""
-    click.echo("Watching idle time... (move mouse to reset, Enter to stop)")  # noqa: E501
+    click.echo("Watching idle time... (move mouse to reset, Enter to stop)")
     click.echo()
     stop = threading.Event()
 
@@ -323,11 +323,7 @@ def _demo_idle_live(input_drv: InputDriver) -> None:
             idle = input_drv.idle_seconds()
             width = shutil.get_terminal_size().columns - 20
             bar = "#" * min(int(idle), width)
-            print(
-                f"\r  Idle: {idle:5.1f}s  {bar}",
-                end="",
-                flush=True,
-            )
+            print(f"\r  Idle: {idle:5.1f}s  {bar}", end="", flush=True)
             time.sleep(1)
 
     t = threading.Thread(target=_update, daemon=True)
@@ -349,11 +345,9 @@ def _demo_mouse_visible() -> None:
     for i in range(3, 0, -1):
         click.echo(f"  {i}...")
         time.sleep(1)
-
     pos = Quartz.CGEventGetLocation(Quartz.CGEventCreate(None))
     x, y = int(pos.x), int(pos.y)
     size = 50
-
     for dx, dy in [(size, 0), (0, size), (-size, 0), (0, -size)]:
         steps = 10
         for step in range(steps):
@@ -364,7 +358,6 @@ def _demo_mouse_visible() -> None:
             time.sleep(0.01)
         x += dx
         y += dy
-
     click.secho("Done — cursor should have drawn a square", fg="green")
 
 
@@ -375,15 +368,11 @@ def _demo_key_visible() -> None:
         click.echo(f"  {i}...")
         time.sleep(1)
     subprocess.run(
-        [
-            "osascript",
-            "-e",
-            'tell app "System Events" to keystroke "●"',
-        ],
+        ["osascript", "-e", 'tell app "System Events" to keystroke "●"'],
         capture_output=True,
         timeout=5,
     )
-    click.secho("Done — you should see '●' in the active field", fg="green")  # noqa: E501
+    click.secho("Done — you should see '●' in the active field", fg="green")
 
 
 def _demo_cycle(input_drv: InputDriver, fmt: Formatter) -> None:
@@ -409,20 +398,6 @@ def _demo_scheduler(sched: SchedulerDriver, fmt: Formatter) -> None:
         fmt.info("Launchd agent: not loaded")
 
 
-def _demo_config(fmt: Formatter) -> None:
-    cfg = load_settings()
-    click.secho("Current Config:", fg="cyan", bold=True)
-    rows = [
-        ("schedule", cfg.get("schedule", DEFAULT_SCHEDULE)),
-        ("idle", f"{cfg.get('idle', DEFAULT_IDLE)}s"),
-        ("method", cfg.get("method", DEFAULT_METHOD)),
-        ("key", cfg.get("key", DEFAULT_KEY)),
-    ]
-    w = max(len(k) for k, _v in rows)
-    for k, v in rows:
-        click.echo(f"  {k:<{w}}  {v}")
-
-
 def _demo_log(fmt: Formatter) -> None:
     fmt.info(f"Log file: {LOG_FILE}")
     try:
@@ -435,25 +410,193 @@ def _demo_log(fmt: Formatter) -> None:
         fmt.info("  (unreadable)")
 
 
-# Menu mapping: choice -> (label, handler)
-_MENU = {
-    "1": ("Check Accessibility permission", _demo_check_perms),
-    "2": ("Show idle time — live counter", _demo_idle_live),
-    "3": ("Test mouse movement — visible square", _demo_mouse_visible),
-    "4": ("Test key press — visible character", _demo_key_visible),
-    "5": ("Test full cycle — idle → jiggle → reset", _demo_cycle),
-    "6": ("Scheduler status — launchd is_running", _demo_scheduler),
-    "7": ("Show current config — settings.json", _demo_config),
-    "8": ("Show log — location + tail", _demo_log),
-}
+# ── new demo handlers (v0.10.1) ────────────────────────────────────────────
 
 
-def cmd_demo(  # noqa: C901 (menu dispatch is inherently branchy)
+def _demo_config(fmt: Formatter) -> None:
+    """Show current config in the new nested format."""
+    cfg = load_settings()
+    act = cfg["activity"]
+    caf = cfg["caffeinate"]
+    sch = cfg["triggers"]["schedule"]
+    wifi = cfg["triggers"]["wifi"]
+    app = cfg["triggers"]["app"]
+
+    click.secho("ACTIVITY", fg="cyan", bold=True)
+    click.echo(f"  Idle threshold: {act['idle']}s")
+    click.echo(f"  Method:         {act['method']}")
+    click.echo(f"  Key:            {act['key']}")
+
+    click.echo()
+    click.secho("CAFFEINATE", fg="cyan", bold=True)
+    caf_status = "enabled" if caf["enabled"] else "disabled"
+    click.echo(f"  Status:    {caf_status}")
+    click.echo(f"  Mode:      {caf['mode']}")
+    click.echo(f"  Lid-closed: {'Yes' if caf['lid_closed'] else 'No'}")
+
+    click.echo()
+    click.secho("TRIGGERS", fg="cyan", bold=True)
+    sch_label = "✓ enabled" if sch["enabled"] else "✗ disabled"
+    click.echo(f"  Schedule:  {sch['from']}–{sch['to']} {sch_label}")
+    if wifi["enabled"] and wifi["ssids"]:
+        click.echo(f"  WiFi:      ✓ {', '.join(wifi['ssids'])}")
+    else:
+        click.echo("  WiFi:      ✗ disabled")
+    if app["enabled"] and app["apps"]:
+        click.echo(f"  App:       ✓ {', '.join(app['apps'])}")
+    else:
+        click.echo("  App:       ✗ disabled")
+
+    sys_sleep = get_system_sleep()
+    if sys_sleep and act["idle"] > sys_sleep and not caf["enabled"]:
+        click.echo()
+        click.secho(
+            f"⚠ idle ({act['idle']}s) > system sleep ({sys_sleep}s) — agent may miss! Enable Caffeinate.",
+            fg="red",
+        )
+
+
+def _demo_triggers_test(fmt: Formatter) -> None:
+    """Test which triggers are active right now."""
+    cfg = load_settings()
+    sch = cfg["triggers"]["schedule"]
+
+    schedule_ok = False
+    if sch["enabled"]:
+        from keepalive.config import parse_schedule as _ps
+        from keepalive.triggers.schedule import in_active_window
+
+        try:
+            sh, eh = _ps(sch["from"], sch["to"])
+            schedule_ok = in_active_window((sh, eh))
+        except ValueError, IndexError:
+            pass
+
+    wifi_ok = False
+    wifi_ssid = None
+    if cfg["triggers"]["wifi"]["enabled"] and cfg["triggers"]["wifi"]["ssids"]:
+        from keepalive.triggers.wifi import get_current_ssid
+
+        wifi_ssid = get_current_ssid()
+        wifi_ok = wifi_ssid in cfg["triggers"]["wifi"]["ssids"]
+
+    app_ok = False
+    running_matches = []
+    if cfg["triggers"]["app"]["enabled"] and cfg["triggers"]["app"]["apps"]:
+        from keepalive.triggers.app import get_running_apps
+
+        running = get_running_apps()
+        running_matches = [a for a in cfg["triggers"]["app"]["apps"] if a in running]
+        app_ok = bool(running_matches)
+
+    click.secho("Trigger test", fg="cyan", bold=True)
+    click.echo()
+
+    if sch["enabled"]:
+        s_label = sch["from"] + "–" + sch["to"]
+        click.echo(f"  Schedule:  {'✅ inside window' if schedule_ok else '❌ ' + s_label}")
+    else:
+        click.echo("  Schedule:  ❌ disabled")
+
+    if cfg["triggers"]["wifi"]["enabled"]:
+        ssid_display = wifi_ssid or "(none)"
+        click.echo(f"  WiFi:      {'✅ ' + ssid_display if wifi_ok else '❌ ' + ssid_display}")
+    else:
+        click.echo("  WiFi:      ❌ disabled")
+
+    if cfg["triggers"]["app"]["enabled"]:
+        if app_ok:
+            click.echo(f"  App:       ✅ {', '.join(running_matches)} running")
+        else:
+            click.echo("  App:       ❌ no matching apps running")
+    else:
+        click.echo("  App:       ❌ disabled")
+
+    click.echo()
+    any_active = schedule_ok or wifi_ok or app_ok
+    if any_active:
+        fmt.success("→ Agent would fire: YES")
+    else:
+        fmt.error("→ Agent would fire: NO (no triggers active)")
+
+
+def _demo_caffeinate_info(fmt: Formatter) -> None:
+    """Show caffeinate status and system sleep information."""
+    cfg = load_settings()
+    caf = cfg["caffeinate"]
+    idle = cfg["activity"]["idle"]
+    sys_sleep = get_system_sleep()
+
+    click.secho("Caffeinate + Sleep Info", fg="cyan", bold=True)
+    click.echo()
+
+    if sys_sleep:
+        click.echo(f"  System sleep timer: {sys_sleep}s ({sys_sleep // 60} min)")
+    else:
+        click.echo("  System sleep timer: unknown")
+
+    click.echo(f"  Caffeinate:          {'enabled' if caf['enabled'] else 'disabled'}")
+    click.echo(f"  Mode:                {caf['mode']}")
+    click.echo(f"  Lid-closed override: {'Yes' if caf['lid_closed'] else 'No'}")
+    click.echo(f"  Idle threshold:      {idle}s")
+
+    if sys_sleep and idle > sys_sleep:
+        click.echo()
+        if caf["enabled"]:
+            click.secho(
+                f"⚠ idle ({idle}s) > sleep ({sys_sleep}s), but Caffeinate is ON — safe.",
+                fg="green",
+            )
+        else:
+            click.secho(
+                f"⚠ idle ({idle}s) > sleep ({sys_sleep}s) — agent may miss!",
+                fg="red",
+            )
+            click.secho("   Enable Caffeinate display mode to prevent this.", fg="yellow")
+
+
+# ── demo menu (questionary) ─────────────────────────────────────────────────
+
+
+_DEMO_CHOICES = [
+    "Check Accessibility permission",
+    "Show idle time — live counter",
+    "Test mouse movement — visible square",
+    "Test key press — visible character",
+    "Test full cycle — idle → jiggle → reset",
+    "Show current config — activity/caffeinate/triggers",
+    "Test triggers — which are active right now?",
+    "Caffeinate + system sleep info",
+    "Scheduler status — launchd",
+    "Show log — location + tail",
+]
+
+
+def _build_demo_handlers(
+    input_drv: InputDriver, sched: SchedulerDriver, fmt: Formatter
+) -> dict[str, Callable[[], None]]:
+    return {
+        "Check Accessibility permission": lambda: _demo_check_perms(input_drv, fmt),
+        "Show idle time — live counter": lambda: _demo_idle_live(input_drv),
+        "Test mouse movement — visible square": _demo_mouse_visible,
+        "Test key press — visible character": _demo_key_visible,
+        "Test full cycle — idle → jiggle → reset": lambda: _demo_cycle(input_drv, fmt),
+        "Show current config — activity/caffeinate/triggers": lambda: _demo_config(fmt),
+        "Test triggers — which are active right now?": lambda: _demo_triggers_test(fmt),
+        "Caffeinate + system sleep info": lambda: _demo_caffeinate_info(fmt),
+        "Scheduler status — launchd": lambda: _demo_scheduler(sched, fmt),
+        "Show log — location + tail": lambda: _demo_log(fmt),
+    }
+
+
+def cmd_demo(
     *,
     input_drv: InputDriver | None = None,
     sched: SchedulerDriver | None = None,
     fmt: Formatter | None = None,
 ) -> None:
+    import questionary
+
     if input_drv is None:
         input_drv = create_input_driver()
     if sched is None:
@@ -462,48 +605,35 @@ def cmd_demo(  # noqa: C901 (menu dispatch is inherently branchy)
         fmt = TextFormatter()
 
     if isinstance(fmt, JsonFormatter):
-        fmt.result({"available": [label for label, _handler in _MENU.values()]})
+        fmt.result({"available": _DEMO_CHOICES})
         return
+
+    handlers = _build_demo_handlers(input_drv, sched, fmt)
 
     while True:
         click.clear()
-        click.secho("🧪 keepalive Demo", fg="cyan", bold=True)
-        click.echo("─" * 36)
-        for key, (label, _handler) in _MENU.items():
-            click.echo(f"  {key}. {label}")
-        click.echo("  0. Exit")
-        click.echo()
+        action = questionary.select(
+            "🧪 keepalive Demo",
+            choices=[
+                questionary.Separator("── Diagnostics ──"),
+                *_DEMO_CHOICES[:5],
+                questionary.Separator("── Configuration ──"),
+                *_DEMO_CHOICES[5:8],
+                questionary.Separator("── System ──"),
+                *_DEMO_CHOICES[8:10],
+                questionary.Separator("─"),
+                "Exit",
+            ],
+        ).ask()
 
-        choice = click.prompt(
-            "Choice",
-            type=click.Choice(["0", "1", "2", "3", "4", "5", "6", "7", "8"]),
-            default="0",
-            show_default=False,
-        )
-
-        if choice == "0":
+        if action is None or action == "Exit":
             fmt.success("Demo finished.")
             break
 
-        _label, handler = _MENU[choice]
-
-        # Some handlers use different signatures — dispatch accordingly
-        if handler is _demo_check_perms:
-            handler(input_drv, fmt)
-        elif handler is _demo_idle_live:
-            handler(input_drv)
-        elif handler in (_demo_mouse_visible, _demo_key_visible):
+        handler = handlers.get(action)
+        if handler:
             handler()
-        elif handler is _demo_cycle:
-            handler(input_drv, fmt)
-        elif handler is _demo_scheduler:
-            handler(sched, fmt)
-        elif handler is _demo_config:
-            handler(fmt)
-        elif handler is _demo_log:
-            handler(fmt)
-
-        click.prompt("\nPress Enter to return to menu", default="", show_default=False)
+            click.prompt("\nPress Enter to return to menu", default="", show_default=False)
 
 
 # ── config commands ────────────────────────────────────────────────────────
