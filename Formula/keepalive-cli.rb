@@ -1,15 +1,13 @@
 class KeepaliveCli < Formula
   desc "Keep macOS awake for Teams during chosen hours"
   homepage "https://github.com/skozar/keepalive"
-  version "0.11.2"
+  version "0.11.3"
   url "https://github.com/skozar/keepalive/releases/download/v#{version}/keepalive-cli-#{version}.tar.gz"
-  sha256 "f6f2b59e87d85d73c4609dbd2f2321354ac5494f415b618f77c54cc3eb88e370"
+  sha256 "302a46e47ba57f8ef7d652c2113b74488d1e250149e29b0eaec56963b4b7d44d"
 
   def install
-    libexec.install Dir["*"]
-    bin.install_symlink libexec/"keepalive-cli" => "keepalive-cli"
-    # Ad-hoc code-sign so the binary appears in Accessibility preferences.
-    system "codesign", "--force", "--deep", "--sign", "-", "#{libexec}/keepalive-cli"
+    libexec.install "keepalive-cli.app"
+    bin.install_symlink libexec/"keepalive-cli.app/Contents/MacOS/keepalive-cli" => "keepalive-cli"
   end
 
   def caveats
