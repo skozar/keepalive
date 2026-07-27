@@ -63,9 +63,8 @@ release:
 	echo "CLI sha256: $$CLI_SHA"; \
 	sed -i '' "s/version \".*\"/version \"$(VERSION)\"/" $(FORMULA); \
 	sed -i '' "s/sha256 \".*\"/sha256 \"$$CLI_SHA\"/" $(FORMULA); \
-	sed -i '' 's/__version__ = ".*"/__version__ = "$(VERSION)"/' src/keepalive/__init__.py; \
-	sed -i '' 's/^version = ".*"/version = "$(VERSION)"/' pyproject.toml; \
-	git add $(FORMULA) CHANGELOG.md pyproject.toml src/keepalive/__init__.py; \
+	sed -i '' 's/__version__ = ".*"/__version__ = "$(VERSION)"/' src/keepalive/__init__.py; \\
+	git add $(FORMULA) CHANGELOG.md src/keepalive/__init__.py; \\
 	git commit -m "v$(VERSION): update formulas" || true; \
 	git push origin main;
 	@echo "📋 Step 5/6: Creating GitHub Release..."

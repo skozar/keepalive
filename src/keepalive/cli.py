@@ -11,6 +11,7 @@ from typing import Any
 
 import click
 
+from keepalive import __version__
 from keepalive.config import (
     CAFFEINATE_MODES,
     DEFAULT_IDLE,
@@ -959,7 +960,9 @@ def cmd_config_replace(  # noqa: C901 (validation + I/O dispatch)
 # ── Click CLI layer ─────────────────────────────────────────────────────────
 
 
-@click.group()
+@click.group(
+    help=f"Keep macOS awake during work hours — stay green in messengers.\n\nVersion: {__version__}"
+)
 @click.option("--json", "json_mode", is_flag=True, help="Output in JSON format")
 @click.pass_context
 def cli(ctx: click.Context, json_mode: bool) -> None:
