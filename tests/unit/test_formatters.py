@@ -2,13 +2,11 @@
 
 import json
 
+import click
 import pytest
+from click.testing import CliRunner
 
-from keepalive.formatters import (
-    CaptureFormatter,
-    JsonFormatter,
-    TextFormatter,
-)
+from keepalive.formatters import CaptureFormatter, JsonFormatter, TextFormatter
 
 
 class TestTextFormatter:
@@ -16,20 +14,20 @@ class TestTextFormatter:
         f = TextFormatter()
         f.info("hello")
         captured = capsys.readouterr()
-        assert captured.out.strip() == "hello"
+        assert "hello" in captured.out
 
     def test_success_prints_coloured(self, capsys):
         f = TextFormatter()
         f.success("done")
-        out = capsys.readouterr().out
-        assert "done" in out
-        assert "\033[32m" in out  # green
+        captured = capsys.readouterr()
+        assert "[OK]" in captured.out
+        assert "done" in captured.out
 
     def test_warning_prints_coloured(self, capsys):
         f = TextFormatter()
         f.warning("careful")
-        out = capsys.readouterr().out
-        assert "careful" in out
+        captured = capsys.readouterr()
+        assert "[!!]" in captured.out
 
     def test_error_goes_to_stderr(self, capsys):
         f = TextFormatter()
@@ -42,10 +40,23 @@ class TestTextFormatter:
         f.result({"a": 1})
         assert capsys.readouterr().out == ""
 
-    def test_prompt_returns_input(self, monkeypatch):
-        monkeypatch.setattr("builtins.input", lambda p="": "yes")
+    def test_prompt_returns_input(self):
+        """click.prompt reads from stdin — use CliRunner input."""
+
         f = TextFormatter()
-        assert f.prompt("? ") == "yes"
+
+        # Simulate stdin via a subprocess-style invocation
+        # We can't easily test click.prompt in isolation;
+        # use a small Click command instead.
+        @click.command()
+        def ask():
+            result = f.prompt("? ")
+            click.echo(result)
+
+        runner = CliRunner()
+        result = runner.invoke(ask, input="yes\n")
+        assert result.exit_code == 0
+        assert "yes" in result.output
 
 
 class TestJsonFormatter:

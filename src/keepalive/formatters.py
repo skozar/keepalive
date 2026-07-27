@@ -2,14 +2,15 @@
 
 Three implementations:
 
-    TextFormatter   — coloured emoji output to stdout (interactive terminal).
+    TextFormatter   — coloured emoji output via click (interactive terminal).
     JsonFormatter   — JSON lines to stdout (for scripts / services).
     CaptureFormatter — records every call (for tests).
 """
 
 import json
-import sys
 from typing import Any, Protocol
+
+import click
 
 
 class Formatter(Protocol):
@@ -28,35 +29,29 @@ class Formatter(Protocol):
     def prompt(self, msg: str) -> str: ...
 
 
-# ── text ─────────────────────────────────────────────────────────────────────
+# ── text (click-powered) ─────────────────────────────────────────────────────
 
 
 class TextFormatter:
-    """Emoji + ANSI escape codes. Everything goes to stdout except error
-    which goes to stderr."""
-
-    _OK = "\033[32m"  # green
-    _WARN = "\033[33m"  # yellow
-    _ERR = "\033[31m"  # red
-    _RESET = "\033[0m"
+    """Uses click.secho / click.style for colours. Prompts via click.prompt."""
 
     def info(self, msg: str) -> None:
-        print(msg)
+        click.echo(msg)
 
     def success(self, msg: str) -> None:
-        print(f"{self._OK}{msg}{self._RESET}")
+        click.secho(f"[OK] {msg}", fg="green")
 
     def warning(self, msg: str) -> None:
-        print(f"{self._WARN}⚠️  {msg}{self._RESET}")
+        click.secho(f"[!!] {msg}", fg="yellow")
 
     def error(self, msg: str) -> None:
-        print(f"{self._ERR}❌ {msg}{self._RESET}", file=sys.stderr)
+        click.secho(f"[FAIL] {msg}", fg="red", err=True)
 
     def result(self, data: dict[str, Any]) -> None:
         """No-op — structured data is for JSON mode only."""
 
     def prompt(self, msg: str) -> str:
-        return input(msg)
+        return str(click.prompt(msg, default="", show_default=False))
 
 
 # ── json ─────────────────────────────────────────────────────────────────────
@@ -83,7 +78,7 @@ class JsonFormatter:
 
     def result(self, data: dict[str, Any]) -> None:
         if not self._emitted:
-            print(json.dumps(data))
+            click.echo(json.dumps(data))
             self._emitted = True
 
     def prompt(self, msg: str) -> str:
