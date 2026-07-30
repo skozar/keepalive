@@ -1,9 +1,9 @@
 class KeepaliveCli < Formula
   desc "Keep macOS awake for Teams during chosen hours"
   homepage "https://github.com/skozar/keepalive"
-  version "0.11.6"
+  version "0.11.7"
   url "https://github.com/skozar/keepalive/releases/download/v#{version}/keepalive-cli-#{version}.tar.gz"
-  sha256 "d0d9224b3dbd7a390d683c2301fded1a3c5d6c8455d876963e372cd6700b69b4"
+  sha256 "46538c9a6a5dc9aafdcf717ead6ae7ee8cba87026b70b7e392a81c42b8050b8d"
 
   def install
     # Tarball contains Contents/ from a PyInstaller --windowed .app bundle.
