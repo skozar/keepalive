@@ -3,7 +3,7 @@
 # Required Notice: Copyright 2026 Sviatoslav Kozar (https://github.com/skozar/keepalive)
 # SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
-__version__ = "0.11.7"
+__version__ = "0.11.8"
 
 # Re-export constants for convenience
 from keepalive.config import (
